@@ -81,11 +81,15 @@ random_check <- function(W_real, W_sim = NULL, X,R.seed = 1995, grf.seed = 1995,
   # Build a treatment propensity model with the real treatment assignment vector. Boosted reg forest from grf.
   g.real  <- grf::boosted_regression_forest(X = X, Y = W_real, honesty = T, tune.parameters = "all", seed = grf.seed)
 
-  # Build a treatment propensity model with the simulated treatment assignment vector. Boosted reg forest from grf.
-  g.sim   <- grf::boosted_regression_forest(X = X, Y = W_sim,  honesty = T, tune.parameters = "all", seed = grf.seed)
-
-  # Simple one-sided, two-sample F-test results between the binary treatments
-  f.res <- var.test(x = g.real$predictions, y = g.sim$predictions, alternative = "greater")
+  # Build a treatment propensity model with the simulated treatment assignment vector. Lock tuning parameters to real model.
+  g.sim   <- grf::boosted_regression_forest(X = X, Y = W_sim, honesty = T, seed = grf.seed,
+                                            sample.fraction      = g.real$forests[[1]]$tunable.params$sample.fraction,
+                                            mtry                 = g.real$forests[[1]]$tunable.params$mtry,
+                                            min.node.size        = g.real$forests[[1]]$tunable.params$min.node.size,
+                                            honesty.fraction     = g.real$forests[[1]]$tunable.params$honesty.fraction,
+                                            honesty.prune.leaves = g.real$forests[[1]]$tunable.params$honesty.prune.leaves,
+                                            alpha                = g.real$forests[[1]]$tunable.params$alpha,
+                                            boost.steps          = length(g.real$forests))
 
   # Build a data frame for the diagnostics plot
   plot.df <- data.frame(var = factor(c(rep("Real",NROW(g.real$predictions)),rep("Null",NROW(g.sim$predictions)))),
@@ -144,20 +148,20 @@ random_check <- function(W_real, W_sim = NULL, X,R.seed = 1995, grf.seed = 1995,
     "prop.model.real.tuning" = g.sim$forests[[1]]$tunable.params,
     "treatment.props.sim" = g.sim$predictions,
     "plot.df" = plot.df,
-    "diff.var.result" = f.res,
     "plot" = g)
 
-  #Print table with summarized results
-  cat("\n\nResult from difference in variances test (one-sided, greater F-test):\n\n")
+  # Add marker for detection of extreme treatment propensities
+  results$extreme.props <- if(any(results$treat.props > .9 | results$treat.props < .1)){
+    cat("\n\nWarning: Extreme Propensity scores detected (greater than .9 or less than .1).
+                                      Examine $treat.props for more detail. \n\n")} else {
+                                        cat("\n\nNo Extreme Propensity scores detected (greater than .9 or less than .1). \n\n")
+                                      }
 
-  data <- data.frame(Statistic = f.res$statistic,
-                     p.val = f.res$p.value,
-                     Result = ifelse(f.res$p.value <.05,"FAIL","PASS"))
-  print(data,row.names = FALSE)
-
-  cat("\n\nCheck diff.var.result in saved output for detailed test result.\n\n")
+  #Print the plot by default
+  results$g
 
   #return the results
   return(results)
 }
 #
+
