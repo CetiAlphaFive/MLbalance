@@ -16,7 +16,7 @@ Stable version is be available on Github here:
 
 ``` r
 # install.packages("pak")
-pak::pak("samjfuller/MLbalance")
+pak::pak("MLCause/MLbalance")
 ```
 
 You can install the development version of MLbalance from
