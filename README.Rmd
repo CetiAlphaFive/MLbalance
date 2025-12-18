@@ -35,7 +35,7 @@ library(MLbalance)
 set.seed(1995)
 #
 # Simple simulation 
-n <- 1000
+n <- 500
 p <- 20
 X <- matrix(rnorm(n*p,0,1),n,p)
 W <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1, .021 + abs(.4*X[,4] - .5*X[,8]), 1))
@@ -52,7 +52,7 @@ b.check <- balance(W = W, #real treatment assignment vector
 One can quickly evaluate the output of the tests using the built in plot and summary functions. 
 
 To plot, simply execute: 
-```{r}
+```{r,fig.height=5, fig.width=15}
 b.check |> plot()
 ```
 
