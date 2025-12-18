@@ -4,7 +4,7 @@ utils::globalVariables(c("pkgs"))
 #' (fast) Classification Permutation Test
 #'
 #' @description
-#' Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are actually perfect for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit that's faster using the RcppNumerical package, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
+#' Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are great for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit that's faster using the RcppNumerical package, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
 #'
 #'Description of cpt: Non-parametric test for equality of multivariate distributions. Trains a classifier to classify (multivariate) observations as coming from one of several distributions. If the classifier is able to classify the observations better than would be expected by chance (using permutation inference), then the null hypothesis that the distributions are equal is rejected.
 #'
@@ -86,7 +86,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
 
     # Get test statistic for real data
     teststat <- getteststat(Z, T, leaveout, train.methods, test.methods, metric, ensemble.metric, leaveout.N)
-    
+
     if (paired) {
         T = as.numeric(T) - 1
         if (progress) pb <- utils::txtProgressBar(min = 0, max = perm.N, style = 3)
