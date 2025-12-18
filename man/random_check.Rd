@@ -35,13 +35,15 @@ This is the main balance permutation test function. First, the function attempts
 The purpose of this exercise is to compare the real treatment propensity distribution to a null distribution where treatment assignment is correctly orthogonal to pre-treatment covariates. To interpret the results, it's advisable to notice any extreme, deterministic treatment propensity scores near zero or one, or any other divergences from design expectations. In general, if randomization succeeded the two distributions should closely overlap with similar means and variances. If the results are at all unclear, it's advisable to estimate average treatment effects via a method that accounts for propensity to treatment (e.g., augmented inverse propensity weighting, overlap weighting, etc.).
 }
 \examples{
-n <- 1000 #sample size
-p <- 20 #number of pre-treatment covariates
-X <- matrix(rnorm(n*p,0,1),n,p) #simulating pre-treatment covariates
+\dontrun{
+n <- 1000
+p <- 20
+X <- matrix(rnorm(n*p,0,1),n,p)
 w_real <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1,
-                 .021 + abs(.4*X[,4] - .5*X[,8]), 1)) #simulating contaminated assignment
+                 .021 + abs(.4*X[,4] - .5*X[,8]), 1))
 df <- data.frame(w_real,X)
-r.check <- random_check(W_real = df$w_real, #real treatment assignment
-                        W_sim  = df$w_sim, #simulated treatment assignment, unhash for permuted version
-                        X = subset(df,select = -w_real)); r.check$plot
+r.check <- random_check(W_real = df$w_real,
+                        X = subset(df, select = -w_real))
+r.check$plot
+}
 }

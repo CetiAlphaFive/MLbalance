@@ -1,5 +1,8 @@
 # MAIN RANDOM CHECK FUNCTION FOR BINARY TREATMENTS ####
 #
+# Suppress R CMD check notes for non-standard evaluation in ggplot
+utils::globalVariables(c("val", "var"))
+#
 # Check dependencies
 if (!requireNamespace("grf", quietly = TRUE)) {
   stop(
@@ -57,15 +60,18 @@ vip <- function(model){
 #' The purpose of this exercise is to compare the real treatment propensity distribution to a null distribution where treatment assignment is correctly orthogonal to pre-treatment covariates. To interpret the results, it's advisable to notice any extreme, deterministic treatment propensity scores near zero or one, or any other divergences from design expectations. In general, if randomization succeeded the two distributions should closely overlap with similar means and variances. If the results are at all unclear, it's advisable to estimate average treatment effects via a method that accounts for propensity to treatment (e.g., augmented inverse propensity weighting, overlap weighting, etc.).
 #'
 #'
-#' @examples n <- 1000 #sample size
-#' @examples p <- 20 #number of pre-treatment covariates
-#' @examples X <- matrix(rnorm(n*p,0,1),n,p) #simulating pre-treatment covariates
-#' @examples w_real <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1,
-#' @examples                  .021 + abs(.4*X[,4] - .5*X[,8]), 1)) #simulating contaminated assignment
-#' @examples df <- data.frame(w_real,X)
-#' @examples r.check <- random_check(W_real = df$w_real, #real treatment assignment
-#' @examples                         W_sim  = df$w_sim, #simulated treatment assignment, unhash for permuted version
-#' @examples                         X = subset(df,select = -w_real)); r.check$plot
+#' @examples
+#' \dontrun{
+#' n <- 1000
+#' p <- 20
+#' X <- matrix(rnorm(n*p,0,1),n,p)
+#' w_real <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1,
+#'                  .021 + abs(.4*X[,4] - .5*X[,8]), 1))
+#' df <- data.frame(w_real,X)
+#' r.check <- random_check(W_real = df$w_real,
+#'                         X = subset(df, select = -w_real))
+#' r.check$plot
+#' }
 #' @export
 random_check <- function(W_real, W_sim = NULL, X,R.seed = 1995, grf.seed = 1995, breaks = 15,facet = FALSE){
 
@@ -74,7 +80,7 @@ random_check <- function(W_real, W_sim = NULL, X,R.seed = 1995, grf.seed = 1995,
 
   #Print message if permutation selected
   if(is.null(W_sim) == TRUE){
-    cat("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permuted Treatment Assignment.\n\n\n")} else {
+    cat("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n\n\n")} else {
       cat("Simulated Assignment Vector Provided, Null Distribution Generated Using Simulated Treatment Assignment.\n\n\n")
     }
 

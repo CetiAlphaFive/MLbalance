@@ -4,9 +4,9 @@
 \name{MLbalance-package}
 \alias{MLbalance}
 \alias{MLbalance-package}
-\title{MLbalance: Balance Permutation Test}
+\title{MLbalance: Machine Learning Balance}
 \description{
-This package implements a novel machine learning balance test, the balance permutation test, for experimental data. The purpose of this test is to detect unintentional failures of random assignment, data fabrication, or simple covariate imbalance. Our implemenation employs honest, boosted random forests with native parallel processing, hyperparameter tuning, and the ability to handle missingness in pre-treatment covariates.
+A suite of machine learning balance tests and estimation tools for experimental and observational data, including a fast implementation of the classification permutation test (Johann Gagnon-Bartsch and Yotam Shem-Tov, 2019). The purpose of this suite is to detect unintentional failures of random assignment, data fabrication, or simple covariate imbalance in random or, as-if random, experimental designs. These tools are meant to work "off-the-shelf" but are also customizable for advanced users.
 }
 \seealso{
 Useful links:
@@ -16,11 +16,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Jack T. Rametta \email{jtrametta@ucdavis.edu}
+\strong{Maintainer}: Jack T. Rametta \email{jtrametta@gmail.com}
 
 Authors:
 \itemize{
-  \item Sam Fuller \email{sjfuller@ucdavis.edu}
+  \item Sam Fuller \email{sfuller@fas.harvard.edu}
 }
 
 }

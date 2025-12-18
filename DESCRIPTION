@@ -1,20 +1,28 @@
 Package: MLbalance
 Type: Package
-Title: Balance Permutation Test 
-Version: 0.1
-Authors@R: c(person(c("Jack", "T."), "Rametta",email = "jtrametta@ucdavis.edu",
+Title: Machine Learning Balance 
+Version: 0.2
+Authors@R: c(person(c("Jack", "T."), "Rametta",email = "jtrametta@gmail.com",
                   role = c("aut", "cre")),
-             person("Sam", "Fuller", email = "sjfuller@ucdavis.edu",
+             person("Sam", "Fuller", email = "sfuller@fas.harvard.edu",
                   role = "aut"))
-Description: This package implements a novel machine learning balance test, the balance permutation test, for experimental data. The purpose of this test is to detect unintentional failures of random assignment, data fabrication, or simple covariate imbalance. Our implemenation employs honest, boosted random forests with native parallel processing, hyperparameter tuning, and the ability to handle missingness in pre-treatment covariates. 
-License: GPL-3
+Description: A suite of machine learning balance tests and estimation tools for experimental and observational data, including a fast implementation of the classification permutation test (Johann Gagnon-Bartsch and Yotam Shem-Tov, 2019). The purpose of this suite is to detect unintentional failures of random assignment, data fabrication, or simple covariate imbalance in random or, as-if random, experimental designs. These tools are meant to work "off-the-shelf" but are also customizable for advanced users.
+License: GPL-3 + file LICENSE
 Depends: R (>= 4.1.0)
 Imports:
+    distributional,
     grf,
     ggdist,
-    ggplot2
+    ggplot2,
+    ranger,
+    rFerns
+Suggests:
+    patchwork,
+    mirai,
+    parallel,
+    RcppNumerical
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 URL: https://github.com/CetiAlphaFive/MLbalance
