@@ -412,14 +412,17 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 15, ...) {
         breaks = breaks,
         interval_alpha = 0
       ) +
+      ggplot2::geom_vline(xintercept = mean(x$pscores_real), color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
+      ggplot2::geom_vline(xintercept = mean(x$pscores_null), color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
       g_theme() +
       ggplot2::labs(
         title = "A. Propensity Score Distributions",
-        x = "Propensity Score",
+        x = "Treatment Propensity Scores",
         y = "Density",
-        caption = "Note: Propensity scores estimated via honest boosted regression forest (grf)."
+        caption = expression(italic("Note: Dotted lines represent mean values for the null and real treatment propensity distributions."))
       ) +
-      ggplot2::scale_fill_manual(values = c(col_null, col_real), name = "") +
+      ggplot2::scale_fill_manual(values = c("dodgerblue1", "darkorange1"), name = "") +
+      ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
       ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
       if (max(plot_df$val) > 1 || min(plot_df$val) < 0) {
         ggplot2::scale_x_continuous(expand = c(0, 0))
