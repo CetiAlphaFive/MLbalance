@@ -15,6 +15,7 @@ balance(
   perm.N = 1000,
   class.method = "ferns",
   seed = 1995,
+  control = NULL,
   fastcpt.args = list()
 )
 
@@ -28,7 +29,7 @@ balance(
 \item{Y}{Outcome vector (numeric) or \code{NULL}. If \code{NULL}, treatment effect
 estimation (and the treatment effect plot) is skipped.}
 
-\item{W}{Treatment assignment vector (binary: 0/1 or logical).}
+\item{W}{Treatment assignment vector. Can be binary (0/1, logical) or multi-arm (factor, character, or integer with >2 levels).}
 
 \item{X}{Pre-treatment covariate matrix or data frame.}
 
@@ -39,6 +40,9 @@ estimation (and the treatment effect plot) is skipped.}
 \item{class.method}{Classification method for balance test. Default is "ferns".}
 
 \item{seed}{Random seed for reproducibility. Default is 1995.}
+
+\item{control}{Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
+the first factor level is used as control. A message is displayed indicating the control assumption.}
 
 \item{fastcpt.args}{A named list of additional arguments to pass to \code{\link{fastcpt}}. For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.}
 
@@ -56,23 +60,29 @@ estimation (and the treatment effect plot) is skipped.}
 }
 \value{
 A list of class "balance" containing:
-\item{balance_test}{Results from fastcpt including p-value and propensity scores.}
-\item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided).}
-\item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided).}
-\item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided).}
-\item{passed}{Logical indicating whether the balance test passed.}
+\item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
+\item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
 \item{alpha}{The significance level used.}
-\item{cf}{The fitted causal_forest object for advanced users (only if \code{Y} is provided).}
+\item{cf}{The fitted causal_forest object(s) for advanced users (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{control}{The control level used.}
+\item{arms}{Character vector of treatment arm names (excluding control).}
+\item{multiarm}{Logical indicating whether this is a multi-arm analysis.}
 }
 \description{
 A unified function for covariate balance assessment and treatment effect estimation.
 Combines a formal balance test (via classification permutation test), visual diagnostics
 (propensity score distributions), and treatment effect estimates using both difference-in-means
 and augmented inverse propensity weighting (AIPW).
+
+Supports both binary and multi-arm treatments. For multi-arm treatments, pairwise comparisons
+are made between each treatment arm and the control group.
 }
 \examples{
 \dontrun{
-# Generate example data
+# Generate example data (binary treatment)
 n <- 500
 p <- 10
 X <- matrix(rnorm(n * p), n, p)
@@ -84,6 +94,12 @@ result <- balance(Y, W, X)
 result
 summary(result)
 plot(result)
+
+# Multi-arm example
+W_multi <- sample(c("Control", "Treatment A", "Treatment B"), n, replace = TRUE)
+Y_multi <- (W_multi == "Treatment A") * 0.3 + (W_multi == "Treatment B") * 0.6 + rnorm(n)
+result_multi <- balance(Y_multi, W_multi, X, control = "Control")
+plot(result_multi)
 }
 
 }
