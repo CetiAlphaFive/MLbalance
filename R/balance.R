@@ -33,6 +33,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
 #' \item{alpha}{The significance level used.}
 #' \item{cf}{The fitted causal_forest object(s) for advanced users (only if \code{Y} is provided). For multi-arm, a named list.}
+#' \item{imp.predictors}{Variable importance scores from the propensity model, computed via \code{\link{vip}}. For multi-arm, a named list.}
 #' \item{control}{The control level used.}
 #' \item{arms}{Character vector of treatment arm names (excluding control).}
 #' \item{multiarm}{Logical indicating whether this is a multi-arm analysis.}
@@ -138,6 +139,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   cf_list <- list()
   passed_vec <- c()
   n_per_arm <- list()
+  vip_list <- list()
   
   # Loop over each treatment arm (pairwise vs control)
   for (arm in treatment_arms) {
@@ -178,6 +180,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       seed = seed
     )
     pscores_real_list[[arm_name]] <- as.numeric(prop_real$predictions)
+    
+    # Variable importance from the propensity model
+    vip_list[[arm_name]] <- vip(prop_real$forests[[1]])
     
     # Null (permuted) treatment propensities
     set.seed(seed + which(treatment_arms == arm))
@@ -257,6 +262,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       cf = if (length(cf_list) > 0) cf_list[[1]] else NULL,
       pscores_real = pscores_real_list[[1]],
       pscores_null = pscores_null_list[[1]],
+      imp.predictors = vip_list[[1]],
       n = length(W),
       n_treated = n_per_arm[[1]]$treated,
       n_control = n_per_arm[[1]]$control,
@@ -275,6 +281,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       cf = if (length(cf_list) > 0) cf_list else NULL,
       pscores_real = pscores_real_list,
       pscores_null = pscores_null_list,
+      imp.predictors = vip_list,
       n = length(W),
       n_per_arm = n_per_arm,
       control = control,

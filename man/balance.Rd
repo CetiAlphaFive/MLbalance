@@ -67,6 +67,7 @@ A list of class "balance" containing:
 \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
 \item{alpha}{The significance level used.}
 \item{cf}{The fitted causal_forest object(s) for advanced users (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{imp.predictors}{Variable importance scores from the propensity model, computed via \code{\link{vip}}. For multi-arm, a named list.}
 \item{control}{The control level used.}
 \item{arms}{Character vector of treatment arm names (excluding control).}
 \item{multiarm}{Logical indicating whether this is a multi-arm analysis.}
