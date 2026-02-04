@@ -144,6 +144,12 @@ A list of class "balance" containing:
   The fitted causal_forest object(s) for advanced users (only if `Y` is
   provided). For multi-arm, a named list.
 
+- imp.predictors:
+
+  Variable importance scores from the propensity model, computed via
+  [`vip`](https://cetialphafive.github.io/MLbalance/reference/vip.md).
+  For multi-arm, a named list.
+
 - control:
 
   The control level used.
