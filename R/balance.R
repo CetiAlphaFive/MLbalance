@@ -337,48 +337,42 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 #' @rdname balance
 #' @export
 print.balance <- function(x, ...) {
+  LINE <- "------------------------------------------------------------\n"
+
   cat("\nBalance Assessment\n")
-  
+  cat(LINE)
+
   if (!x$multiarm) {
-    # Binary treatment
     status <- ifelse(x$passed, "PASS", "FAIL")
-    cat(sprintf("  Control: '%s'\n", x$control))
-    cat(sprintf("  Balance test p-value: %.4f (%s)\n", x$balance_test$pval, status))
-    if (!is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$aipw_const)) {
-      cat(sprintf("  DiM estimate:         %.4f (SE: %.4f)\n", x$dim$estimate, x$dim$std.err))
-      cat(sprintf("  IPW estimate:         %.4f (SE: %.4f)\n", x$ipw$estimate, x$ipw$std.err))
-      cat(sprintf("  Outcome adj. (CF):    %.4f (SE: %.4f)\n", x$aipw_const$estimate, x$aipw_const$std.err))
-      cat(sprintf("  Doubly robust (CF):   %.4f (SE: %.4f)\n", x$aipw$estimate, x$aipw$std.err))
+    cat(sprintf("  Control:  '%s'\n", x$control))
+    cat(sprintf("  Balance:  p = %.4f  [%s]\n", x$balance_test$pval, status))
+    if (!is.null(x$dim)) {
+      cat("\nTreatment Effect Estimates\n")
+      cat(LINE)
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "DiM (unadjusted):", x$dim$estimate, x$dim$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Propensity-Adjusted (IPW):", x$ipw$estimate, x$ipw$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Outcome-Adjusted:", x$aipw_const$estimate, x$aipw_const$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Doubly-Robust (AIPW):", x$aipw$estimate, x$aipw$std.err))
     } else {
-      cat("  Outcome Y not provided: skipping treatment effect estimates.\n")
+      cat("  No outcome Y provided: treatment effect estimates skipped.\n")
     }
   } else {
-    # Multi-arm treatment
-    cat(sprintf("  Multi-arm analysis (%d treatment arms vs control '%s')\n", 
-                length(x$arms), x$control))
+    cat(sprintf("  Control: '%s'  |  %d treatment arms\n", x$control, length(x$arms)))
     cat("\n")
-    
+    has_effects <- !is.null(x$dim)
     for (arm in x$arms) {
       status <- ifelse(x$passed[arm], "PASS", "FAIL")
-      cat(sprintf("  [%s vs %s]\n", arm, x$control))
-      cat(sprintf("    Balance test p-value: %.4f (%s)\n", x$balance_test[[arm]]$pval, status))
-      if (!is.null(x$dim) && !is.null(x$dim[[arm]])) {
-        cat(sprintf("    DiM estimate:         %.4f (SE: %.4f)\n",
-                    x$dim[[arm]]$estimate, x$dim[[arm]]$std.err))
-        cat(sprintf("    IPW estimate:         %.4f (SE: %.4f)\n",
-                    x$ipw[[arm]]$estimate, x$ipw[[arm]]$std.err))
-        cat(sprintf("    Outcome adj. (CF):    %.4f (SE: %.4f)\n",
-                    x$aipw_const[[arm]]$estimate, x$aipw_const[[arm]]$std.err))
-        cat(sprintf("    Doubly robust (CF):   %.4f (SE: %.4f)\n",
-                    x$aipw[[arm]]$estimate, x$aipw[[arm]]$std.err))
-      } else {
-        cat("    Outcome Y not provided: skipping treatment effect estimates.\n")
+      cat(sprintf("  [%s vs %s]  p = %.4f  [%s]\n",
+                  arm, x$control, x$balance_test[[arm]]$pval, status))
+      if (has_effects) {
+        cat(sprintf("    DiM: %8.4f   IPW: %8.4f   AIPW: %8.4f\n",
+                    x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw[[arm]]$estimate))
       }
-      cat("\n")
     }
+    if (!has_effects) cat("\n  No outcome Y provided: treatment effect estimates skipped.\n")
   }
-  
-  cat("  Use summary() for details, plot() to visualize.\n\n")
+
+  cat("\nUse summary() for full details, plot() to visualize.\n\n")
   invisible(x)
 }
 
@@ -386,162 +380,196 @@ print.balance <- function(x, ...) {
 #' @rdname balance
 #' @export
 summary.balance <- function(object, ...) {
-  
-  cat("\n")
-  cat("========================================================================\n")
-  cat("                    COVARIATE BALANCE ASSESSMENT                        \n")
-  cat("========================================================================\n\n")
-  
-  # Section 1: Sample
-  cat("1. SAMPLE CHARACTERISTICS\n")
-  cat("------------------------------------------------------------------------\n")
-  cat(sprintf("   Total observations:           %d\n", object$n))
-  cat(sprintf("   Control group ('%s'):       ", object$control))
-  
 
+  SEP  <- "========================================================================\n"
+  LINE <- "------------------------------------------------------------------------\n"
+  has_effects <- !is.null(object$dim)
+
+  # ── Helper: balance test block (test stats + PS diagnostics) ─────────────
+  print_balance_block <- function(bt, ps_real, ps_null, passed, alpha) {
+    status <- ifelse(passed, "PASS", "FAIL")
+    cat(sprintf("   Classifier:          %s\n", paste(bt$class.methods, collapse = ", ")))
+    cat(sprintf("   Permutations:        %d\n", bt$perm.N))
+    cat(sprintf("   Test statistic:      %.4f\n", bt$teststat))
+    cat(sprintf("   Null mean (SD):      %.4f (%.4f)\n",
+                mean(bt$nulldist), stats::sd(bt$nulldist)))
+    cat(sprintf("   P-value:             %.4f\n", bt$pval))
+    cat(sprintf("   Alpha:               %.2f\n", alpha))
+    cat(sprintf("   Result:              %s\n", status))
+    cat("\n")
+    cat("   Propensity scores (boosted regression forest):\n")
+    cat(sprintf("   %-16s  %10s  %10s\n", "", "Real", "Null"))
+    cat(sprintf("   %s\n", strrep("-", 40)))
+    cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Mean:",
+                mean(ps_real), mean(ps_null)))
+    cat(sprintf("   %-16s  %10.4f  %10.4f\n", "SD:",
+                stats::sd(ps_real), stats::sd(ps_null)))
+    cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Min:",
+                min(ps_real), min(ps_null)))
+    cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Max:",
+                max(ps_real), max(ps_null)))
+    cat(sprintf("   %s\n", strrep("-", 40)))
+    cat(sprintf("   Diff. in means:      %.4f\n",
+                mean(ps_real) - mean(ps_null)))
+    cat(sprintf("   Ratio of SDs:        %.4f\n",
+                stats::sd(ps_real) / stats::sd(ps_null)))
+    cat("\n")
+  }
+
+  # ── Helper: estimates table rows ──────────────────────────────────────────
+  # Format: label (26), estimate (9), SE (8), CI (20) = 66 chars after "   "
+  EST_ROW <- "   %-26s  %9.4f  %8.4f  [%8.4f, %8.4f]\n"
+
+  print_estimates_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res) {
+    cat(sprintf(EST_ROW, "DiM (unadjusted)",
+                dim_res$estimate,        dim_res$std.err,
+                dim_res$ci[1],           dim_res$ci[2]))
+    cat(sprintf(EST_ROW, "Propensity-Adjusted (IPW)",
+                ipw_res$estimate,        ipw_res$std.err,
+                ipw_res$ci[1],           ipw_res$ci[2]))
+    cat(sprintf(EST_ROW, "Outcome-Adjusted",
+                aipw_const_res$estimate, aipw_const_res$std.err,
+                aipw_const_res$ci[1],    aipw_const_res$ci[2]))
+    cat(sprintf(EST_ROW, "Doubly-Robust (AIPW)",
+                aipw_res$estimate,       aipw_res$std.err,
+                aipw_res$ci[1],          aipw_res$ci[2]))
+  }
+
+  # ── Helper: divergence table + dynamic interpretations ────────────────────
+  # Label col = 28 to fit "Prop.-Adj. vs Doubly-Robust" (27 chars)
+  # Total: 3 + 28 + 2 + 10 + 2 + 9 + 2 + 7 + 2 + 8 = 73 chars (+ 2 sig marker)
+  DIV_ROW <- "   %-28s  %10.4f  %9.4f  %7.3f  %8.4f%s\n"
+
+  print_divergence_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res, alpha) {
+    pairs <- list(
+      list(key = "dim_ipw", label = "DiM vs Propensity-Adjusted",
+           e1 = dim_res$estimate,        se1 = dim_res$std.err,
+           e2 = ipw_res$estimate,        se2 = ipw_res$std.err),
+      list(key = "dim_oa",  label = "DiM vs Outcome-Adjusted",
+           e1 = dim_res$estimate,        se1 = dim_res$std.err,
+           e2 = aipw_const_res$estimate, se2 = aipw_const_res$std.err),
+      list(key = "dim_dr",  label = "DiM vs Doubly-Robust",
+           e1 = dim_res$estimate,        se1 = dim_res$std.err,
+           e2 = aipw_res$estimate,       se2 = aipw_res$std.err),
+      list(key = "ipw_dr",  label = "Prop.-Adj. vs Doubly-Robust",
+           e1 = ipw_res$estimate,        se1 = ipw_res$std.err,
+           e2 = aipw_res$estimate,       se2 = aipw_res$std.err)
+    )
+
+    # Compute stats for all pairs upfront
+    res <- lapply(pairs, function(p) {
+      d  <- p$e1 - p$e2
+      se <- sqrt(p$se1^2 + p$se2^2)
+      z  <- d / se
+      pv <- 2 * stats::pnorm(-abs(z))
+      list(key = p$key, label = p$label,
+           diff = d, se = se, z = z, pval = pv, sig = pv < alpha)
+    })
+    r <- stats::setNames(res, vapply(res, `[[`, character(1L), "key"))
+
+    # Print table
+    any_sig <- any(vapply(res, `[[`, logical(1L), "sig"))
+    for (rv in res) {
+      cat(sprintf(DIV_ROW, rv$label, rv$diff, rv$se, rv$z, rv$pval,
+                  if (rv$sig) " *" else "  "))
+    }
+    if (any_sig) cat(sprintf("   * p < %.2f\n", alpha))
+    cat("\n")
+
+    # Dynamic interpretations (only for significant comparisons)
+    if (!any_sig) return(invisible(NULL))
+
+    dir_of <- function(d) if (d > 0) "downward" else "upward"
+    opp_of <- function(d) if (d > 0) "upward"   else "downward"
+
+    cat("   Significant divergences:\n\n")
+
+    # a) DiM vs Propensity-Adjusted (IPW)
+    if (r$dim_ipw$sig) {
+      cat(sprintf(paste0(
+        "   DiM vs Propensity-Adjusted (IPW): Adjusting for covariate imbalance\n",
+        "   via inverse probability weighting moves the ATE estimate %s by %.4f\n",
+        "   units (z = %.3f, p = %.4f), suggesting that finite-sample covariate\n",
+        "   imbalance shifts the naive estimate %s.\n\n"
+      ), dir_of(r$dim_ipw$diff), abs(r$dim_ipw$diff),
+         r$dim_ipw$z, r$dim_ipw$pval, opp_of(r$dim_ipw$diff)))
+    }
+
+    # b) DiM vs Outcome-Adjusted
+    if (r$dim_oa$sig) {
+      cat(sprintf(paste0(
+        "   DiM vs Outcome-Adjusted: Outcome regression adjustment moves the ATE\n",
+        "   estimate %s by %.4f units (z = %.3f, p = %.4f), indicating that\n",
+        "   covariate-outcome associations shift the naive estimate %s.\n\n"
+      ), dir_of(r$dim_oa$diff), abs(r$dim_oa$diff),
+         r$dim_oa$z, r$dim_oa$pval, opp_of(r$dim_oa$diff)))
+    }
+
+    # c) DiM vs Doubly-Robust
+    if (r$dim_dr$sig) {
+      comp <- if (abs(r$dim_dr$diff) > max(abs(r$dim_ipw$diff), abs(r$dim_oa$diff)))
+                "larger" else "smaller"
+      cat(sprintf(paste0(
+        "   DiM vs Doubly-Robust (AIPW): Jointly adjusting for treatment propensity\n",
+        "   and the outcome surface moves the ATE estimate %s by %.4f units\n",
+        "   (z = %.3f, p = %.4f), a %s correction than either adjustment alone.\n\n"
+      ), dir_of(r$dim_dr$diff), abs(r$dim_dr$diff),
+         r$dim_dr$z, r$dim_dr$pval, comp))
+    }
+
+    # d) Propensity-Adjusted vs Doubly-Robust
+    if (r$ipw_dr$sig) {
+      cat(sprintf(paste0(
+        "   Propensity-Adjusted vs Doubly-Robust: Augmenting propensity score\n",
+        "   adjustment with outcome modeling moves the ATE estimate %s by an\n",
+        "   additional %.4f units (z = %.3f, p = %.4f), indicating that outcome\n",
+        "   regression captures additional covariate-outcome associations beyond\n",
+        "   reweighting alone.\n\n"
+      ), dir_of(r$ipw_dr$diff), abs(r$ipw_dr$diff),
+         r$ipw_dr$z, r$ipw_dr$pval))
+    }
+  }
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART I: COVARIATE BALANCE ASSESSMENT
+  # ══════════════════════════════════════════════════════════════════════════
+  cat("\n")
+  cat(SEP)
+  cat("                   COVARIATE BALANCE ASSESSMENT                        \n")
+  cat(SEP)
+  cat("\n")
+
+  # Section 1: Sample
+  cat("1. SAMPLE\n")
+  cat(LINE)
+  cat(sprintf("   Observations:    %d\n", object$n))
   if (!object$multiarm) {
-    # Binary treatment
-    cat(sprintf("%d (%.1f%%)\n", object$n_control, 100 * object$n_control / object$n))
-    cat(sprintf("   Treatment group:              %d (%.1f%%)\n", 
+    cat(sprintf("   Control ('%s'):  %d (%.1f%%)\n",
+                object$control, object$n_control,
+                100 * object$n_control / object$n))
+    cat(sprintf("   Treatment:       %d (%.1f%%)\n",
                 object$n_treated, 100 * object$n_treated / object$n))
   } else {
-    # Multi-arm treatment
-    n_control <- object$n_per_arm[[1]]$control
-    cat(sprintf("%d (%.1f%%)\n", n_control, 100 * n_control / object$n))
+    n_ctrl <- object$n_per_arm[[1]]$control
+    cat(sprintf("   Control ('%s'):  %d (%.1f%%)\n",
+                object$control, n_ctrl, 100 * n_ctrl / object$n))
     for (arm in object$arms) {
       n_arm <- object$n_per_arm[[arm]]$treated
-      cat(sprintf("   Treatment arm '%s':       %d (%.1f%%)\n", 
+      cat(sprintf("   Arm ('%s'):  %d (%.1f%%)\n",
                   arm, n_arm, 100 * n_arm / object$n))
     }
   }
   cat("\n")
-  
-  # Helper function to print results for one arm
-  print_arm_results <- function(arm_name, balance_test, ps_real, ps_null,
-                                 dim_res, ipw_res, aipw_res, aipw_const_res, cf, passed,
-                                 alpha) {
-    status <- ifelse(passed, "PASS", "FAIL")
 
-    # Balance Test
-    cat("CLASSIFICATION PERMUTATION TEST\n")
-    cat("------------------------------------------------------------------------\n")
-    cat(sprintf("   Classifier:                   %s\n",
-                paste(balance_test$class.methods, collapse = ", ")))
-    cat(sprintf("   Number of permutations:       %d\n", balance_test$perm.N))
-    cat(sprintf("   Test statistic (observed):    %.4f\n", balance_test$teststat))
-    cat(sprintf("   Null distribution mean:       %.4f\n", mean(balance_test$nulldist)))
-    cat(sprintf("   Null distribution SD:         %.4f\n", stats::sd(balance_test$nulldist)))
-    cat(sprintf("   P-value:                      %.4f\n", balance_test$pval))
-    cat(sprintf("   Significance level (alpha):   %.2f\n", alpha))
-    cat(sprintf("   Result:                       %s\n", status))
-    cat("\n")
-
-    # Propensity Score Diagnostics
-    cat("PROPENSITY SCORE DIAGNOSTICS (Boosted Regression Forest)\n")
-    cat("------------------------------------------------------------------------\n")
-    cat("   Real treatment assignment:\n")
-    cat(sprintf("      Mean:                      %.4f\n", mean(ps_real)))
-    cat(sprintf("      SD:                        %.4f\n", stats::sd(ps_real)))
-    cat(sprintf("      Range:                     [%.4f, %.4f]\n", min(ps_real), max(ps_real)))
-    cat("   Null (permuted) assignment:\n")
-    cat(sprintf("      Mean:                      %.4f\n", mean(ps_null)))
-    cat(sprintf("      SD:                        %.4f\n", stats::sd(ps_null)))
-    cat(sprintf("      Range:                     [%.4f, %.4f]\n", min(ps_null), max(ps_null)))
-    cat("   Distributional comparison:\n")
-    cat(sprintf("      Difference in means:       %.4f\n", mean(ps_real) - mean(ps_null)))
-    cat(sprintf("      Ratio of SDs:              %.4f\n", stats::sd(ps_real) / stats::sd(ps_null)))
-    cat("\n")
-
-    # Treatment Effects
-    cat("TREATMENT EFFECT ESTIMATES\n")
-    cat("------------------------------------------------------------------------\n")
-    if (!is.null(dim_res) && !is.null(ipw_res) && !is.null(aipw_res) && !is.null(aipw_const_res)) {
-      cat("   Difference-in-Means (unadjusted):\n")
-      cat(sprintf("      Estimate:                  %.4f\n", dim_res$estimate))
-      cat(sprintf("      Standard error:            %.4f\n", dim_res$std.err))
-      cat(sprintf("      95%% CI (normal approx.):  [%.4f, %.4f]\n",
-                  dim_res$ci[1], dim_res$ci[2]))
-      cat("\n")
-      cat("   IPW (propensity-weighted, no outcome adjustment):\n")
-      cat(sprintf("      Estimate:                  %.4f\n", ipw_res$estimate))
-      cat(sprintf("      Standard error:            %.4f\n", ipw_res$std.err))
-      cat(sprintf("      95%% CI (normal approx.):  [%.4f, %.4f]\n",
-                  ipw_res$ci[1], ipw_res$ci[2]))
-      cat("\n")
-      cat("   Outcome-adjusted (causal forest, no propensity weighting):\n")
-      cat(sprintf("      Estimate:                  %.4f\n", aipw_const_res$estimate))
-      cat(sprintf("      Standard error:            %.4f\n", aipw_const_res$std.err))
-      cat(sprintf("      95%% CI (normal approx. (IJ SE)):  [%.4f, %.4f]\n",
-                  aipw_const_res$ci[1], aipw_const_res$ci[2]))
-      cat("\n")
-      cat("   Doubly robust (causal forest with propensity weighting):\n")
-      cat(sprintf("      Estimate:                  %.4f\n", aipw_res$estimate))
-      cat(sprintf("      Standard error:            %.4f\n", aipw_res$std.err))
-      cat(sprintf("      95%% CI (normal approx. (IJ SE)):  [%.4f, %.4f]\n",
-                  aipw_res$ci[1], aipw_res$ci[2]))
-      if (!is.null(cf)) {
-        cat(sprintf("      Number of trees:           %d\n", cf$`_num_trees`))
-      }
-      cat("\n")
-
-      # Estimator divergence tests
-      cat("ESTIMATOR DIVERGENCE TESTS\n")
-      cat("------------------------------------------------------------------------\n")
-      diverge_pairs <- list(
-        list(label = "DiM vs IPW",
-             e1 = dim_res$estimate,        se1 = dim_res$std.err,
-             e2 = ipw_res$estimate,        se2 = ipw_res$std.err),
-        list(label = "DiM vs Outcome-adjusted",
-             e1 = dim_res$estimate,        se1 = dim_res$std.err,
-             e2 = aipw_const_res$estimate, se2 = aipw_const_res$std.err),
-        list(label = "DiM vs Doubly robust",
-             e1 = dim_res$estimate,        se1 = dim_res$std.err,
-             e2 = aipw_res$estimate,       se2 = aipw_res$std.err),
-        list(label = "IPW vs Doubly robust",
-             e1 = ipw_res$estimate,        se1 = ipw_res$std.err,
-             e2 = aipw_res$estimate,       se2 = aipw_res$std.err)
-      )
-      cat(sprintf("   %-26s %10s %9s %7s %8s\n",
-                  "Comparison", "Difference", "SE(diff)", "z-stat", "p-value"))
-      cat(sprintf("   %s\n", strrep("-", 64)))
-      any_sig <- FALSE
-      for (dp in diverge_pairs) {
-        est_diff <- dp$e1 - dp$e2
-        se_diff  <- sqrt(dp$se1^2 + dp$se2^2)
-        z_stat   <- est_diff / se_diff
-        pval     <- 2 * stats::pnorm(-abs(z_stat))
-        sig      <- if (pval < alpha) " *" else "  "
-        if (pval < alpha) any_sig <- TRUE
-        cat(sprintf("   %-26s %10.4f %9.4f %7.3f %8.4f%s\n",
-                    dp$label, est_diff, se_diff, z_stat, pval, sig))
-      }
-      if (any_sig) cat(sprintf("   * p < %.2f\n", alpha))
-      cat("\n")
-    } else {
-      cat("   Outcome Y not provided: skipping treatment effect estimates.\n")
-      cat("\n")
-    }
-  }
-  
   if (!object$multiarm) {
-    # Binary treatment - single output
-    print_arm_results(
-      arm_name = "treated",
-      balance_test = object$balance_test,
-      ps_real = object$pscores_real,
-      ps_null = object$pscores_null,
-      dim_res = object$dim,
-      ipw_res = object$ipw,
-      aipw_res = object$aipw,
-      aipw_const_res = object$aipw_const,
-      cf = object$cf,
-      passed = object$passed,
-      alpha = object$alpha
-    )
+    # ── Binary: section 2 = balance test, section 3 = interpretation ─────
+    cat("2. CLASSIFICATION PERMUTATION TEST\n")
+    cat(LINE)
+    print_balance_block(object$balance_test, object$pscores_real, object$pscores_null,
+                        object$passed, object$alpha)
 
-    # Interpretation
-    cat("2. INTERPRETATION\n")
-    cat("------------------------------------------------------------------------\n")
+    cat("3. INTERPRETATION\n")
+    cat(LINE)
     if (object$passed) {
       cat("   The classification permutation test does not reject the null\n")
       cat("   hypothesis that treatment and control groups are drawn from the\n")
@@ -554,37 +582,39 @@ summary.balance <- function(object, ...) {
       cat("   groups better than random chance.\n")
     }
     cat("\n")
-    
-  } else {
-    # Multi-arm treatment - loop over arms
-    for (i in seq_along(object$arms)) {
-      arm <- object$arms[i]
-      cat("========================================================================\n")
-      cat(sprintf("  COMPARISON: %s vs %s (Control)\n", arm, object$control))
-      cat("========================================================================\n\n")
-      
-      print_arm_results(
-        arm_name = arm,
-        balance_test = object$balance_test[[arm]],
-        ps_real = object$pscores_real[[arm]],
-        ps_null = object$pscores_null[[arm]],
-        dim_res = if (!is.null(object$dim)) object$dim[[arm]] else NULL,
-        ipw_res = if (!is.null(object$ipw)) object$ipw[[arm]] else NULL,
-        aipw_res = if (!is.null(object$aipw)) object$aipw[[arm]] else NULL,
-        aipw_const_res = if (!is.null(object$aipw_const)) object$aipw_const[[arm]] else NULL,
-        cf = if (!is.null(object$cf)) object$cf[[arm]] else NULL,
-        passed = object$passed[arm],
-        alpha = object$alpha
-      )
+    next_sec <- 4L
 
+  } else {
+    # ── Multi-arm: section 2 = summary table, 3+ = per-arm details ───────
+    cat("2. CLASSIFICATION PERMUTATION TEST SUMMARY\n")
+    cat(LINE)
+    cat(sprintf("   %-34s  %9s  %6s\n", "Comparison", "P-value", "Result"))
+    cat(sprintf("   %s\n", strrep("-", 53)))
+    for (arm in object$arms) {
+      status <- ifelse(object$passed[arm], "PASS", "FAIL")
+      sig    <- if (!object$passed[arm]) " *" else "  "
+      cat(sprintf("   %-34s  %9.4f  %6s%s\n",
+                  paste(arm, "vs", object$control),
+                  object$balance_test[[arm]]$pval, status, sig))
     }
-    
-    # Overall interpretation for multi-arm
-    cat("========================================================================\n")
-    cat("  OVERALL INTERPRETATION\n")
-    cat("========================================================================\n\n")
+    if (!all(object$passed)) cat(sprintf("   * p < %.2f\n", object$alpha))
+    cat("\n")
+
+    sec <- 3L
+    for (arm in object$arms) {
+      cat(sprintf("%d. CLASSIFICATION PERMUTATION TEST: %s vs %s\n", sec, arm, object$control))
+      cat(LINE)
+      print_balance_block(object$balance_test[[arm]],
+                          object$pscores_real[[arm]],
+                          object$pscores_null[[arm]],
+                          object$passed[arm], object$alpha)
+      sec <- sec + 1L
+    }
+
+    cat(sprintf("%d. INTERPRETATION\n", sec))
+    cat(LINE)
     n_passed <- sum(object$passed)
-    n_total <- length(object$passed)
+    n_total  <- length(object$passed)
     if (all(object$passed)) {
       cat(sprintf("   All %d pairwise balance tests PASSED.\n", n_total))
       cat("   The classifier cannot distinguish any treatment arm from control\n")
@@ -594,27 +624,92 @@ summary.balance <- function(object, ...) {
       cat("   The classifier can distinguish all treatment arms from control.\n")
     } else {
       cat(sprintf("   %d of %d pairwise balance tests passed.\n", n_passed, n_total))
-      cat(sprintf("   Failed comparisons: %s\n", 
+      cat(sprintf("   Failed: %s\n",
                   paste(names(object$passed)[!object$passed], collapse = ", ")))
     }
     cat("\n")
+    next_sec <- sec + 1L
   }
-  
-  # Estimator interpretation (only if Y was provided)
-  has_effects <- !is.null(object$dim) && !is.null(object$ipw) && !is.null(object$aipw) && !is.null(object$aipw_const)
-  if (has_effects) {
-    cat("   ESTIMATOR COMPARISON GUIDE:\n")
-    cat("   - DiM: Unadjusted difference in means (baseline).\n")
-    cat("   - IPW: Reweights by propensity score; corrects for imbalance only.\n")
-    cat("   - Outcome-adjusted: Adjusts for covariates in outcome model only.\n")
-    cat("   - Doubly robust (AIPW): Combines both adjustments.\n")
-    cat("   Interpretation:\n")
-    cat("   * DiM vs IPW differ          -> imbalance is biasing the unadjusted estimate.\n")
-    cat("   * DiM vs Outcome adj. differ -> covariates predict the outcome.\n")
-    cat("   * DiM vs AIPW differ         -> could be imbalance, outcome prediction, or both.\n")
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART II: TREATMENT EFFECT ESTIMATION
+  # ══════════════════════════════════════════════════════════════════════════
+  if (!has_effects) {
+    return(invisible(object))
+  }
+
+  cat(SEP)
+  cat("                   TREATMENT EFFECT ESTIMATION                         \n")
+  cat(SEP)
+  cat("\n")
+
+  # Shared table header/separator strings
+  # EST_ROW: 3 + 26 + 2 + 9 + 2 + 8 + 2 + [1+8+2+8+1] = 72 chars
+  EST_HEAD <- sprintf("   %-26s  %9s  %8s  %20s\n",
+                      "Estimator", "Estimate", "SE", "95% CI")
+  EST_SEP  <- sprintf("   %s\n", strrep("-", 69))
+  # DIV_ROW: 3 + 28 + 2 + 10 + 2 + 9 + 2 + 7 + 2 + 8 = 73 chars (+ 2 for sig marker)
+  DIV_HEAD <- sprintf("   %-28s  %10s  %9s  %7s  %8s\n",
+                      "Comparison", "Difference", "SE(diff)", "z-stat", "p-value")
+  DIV_SEP  <- sprintf("   %s\n", strrep("-", 70))
+
+  if (!object$multiarm) {
+    # Section N: Estimates
+    cat(sprintf("%d. ESTIMATES\n", next_sec))
+    cat(LINE)
+    cat(EST_HEAD)
+    cat(EST_SEP)
+    print_estimates_rows(object$dim, object$ipw, object$aipw, object$aipw_const)
     cat("\n")
+
+    # Section N+1: Divergence tests
+    cat(sprintf("%d. ESTIMATOR DIVERGENCE TESTS\n", next_sec + 1L))
+    cat(LINE)
+    cat(DIV_HEAD)
+    cat(DIV_SEP)
+    print_divergence_rows(object$dim, object$ipw, object$aipw, object$aipw_const, object$alpha)
+
+    next_sec <- next_sec + 2L
+
+  } else {
+    # Estimates: one section, arm sub-headers inside the table
+    cat(sprintf("%d. ESTIMATES\n", next_sec))
+    cat(LINE)
+    cat(EST_HEAD)
+    cat(EST_SEP)
+    for (arm in object$arms) {
+      cat(sprintf("   --- %s vs %s ---\n", arm, object$control))
+      print_estimates_rows(object$dim[[arm]], object$ipw[[arm]],
+                           object$aipw[[arm]], object$aipw_const[[arm]])
+    }
+    cat("\n")
+
+    # Divergence tests: one section, arm sub-headers inside
+    cat(sprintf("%d. ESTIMATOR DIVERGENCE TESTS\n", next_sec + 1L))
+    cat(LINE)
+    for (arm in object$arms) {
+      cat(sprintf("   --- %s vs %s ---\n", arm, object$control))
+      cat(DIV_HEAD)
+      cat(DIV_SEP)
+      print_divergence_rows(object$dim[[arm]], object$ipw[[arm]],
+                            object$aipw[[arm]], object$aipw_const[[arm]], object$alpha)
+    }
+
+    next_sec <- next_sec + 2L
   }
-  
+
+  # Final section: Guide
+  cat(sprintf("%d. ESTIMATOR GUIDE\n", next_sec))
+  cat(LINE)
+  cat("   - DiM (unadjusted):        Naive difference in means; no adjustment.\n")
+  cat("   - Propensity-Adjusted (IPW): Reweights by propensity score; corrects for\n")
+  cat("                              covariate imbalance, not covariate-outcome associations.\n")
+  cat("   - Outcome-Adjusted:        Adjusts via outcome regression only; no propensity\n")
+  cat("                              weighting.\n")
+  cat("   - Doubly-Robust (AIPW):    Combines both adjustments; consistent if either\n")
+  cat("                              the propensity or outcome model is correctly specified.\n")
+  cat("\n")
+
   invisible(object)
 }
 
