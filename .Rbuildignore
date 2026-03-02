@@ -5,3 +5,5 @@
 ^docs$
 ^pkgdown$
 ^\.github$
+^balance\.explainer\.Rmd$
+^balance\.explainer\.html$

@@ -1,0 +1,198 @@
+---
+title: "Testing for Balance with Machine Learning"
+author: "Jack T. Rametta"
+date: "2025-12-18"
+output: html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+```{r,preliminaries}
+library(MLbalance)
+library(modelsummary)
+set.seed(1995)
+```
+
+## Upgrading Table 1: Machine Learning for Balance Testing 
+Perhaps the most common table in all scientific publications is the so-called ``Table 1'' or balance table. This little table displays simple statistics meant to compare the distributions of covariates between a treated and control group, to check for marginal balance on these covariates. For example, pretend we have a simple random experiment with a binary treatment($W$), continuous outcome ($Y$), and pre-treatment covariates ($X$). 
+
+A simple balance table might look something like this: 
+```{r, dgp setup}
+n <- 500
+W <- rbinom(n,1,.5) #simulate an orthogonal binary treatment 
+X <- data.frame(Female = rbinom(n,1,.5), 
+                Age = sample(seq(18, 80, 1), size = n, replace = TRUE, prob = dnorm(seq(18, 80, 1), mean = 38, sd = 18)),
+                Democrat = rbinom(n,1,.5),
+                Income = rnorm(n,60000,15000),
+                Hispanic = rbinom(n,1,.5),
+                White = rbinom(n,1,.4),
+                Christian = rbinom(n,1,.6),
+                College = rbinom(n,1,.3),
+                Employed = rbinom(n,1,.6))
+
+modelsummary::datasummary_balance(~W, data = data.frame(W = W,X), stars = TRUE)
+```
+
+In our toy example, we can see the mean and standard deviation for several simulated covariates between the treatment and control groups along with associated marginal balance tests (i.e., is there a statistically significant difference between the proportion of females in the treatment and control groups?). In this case, there is a statistically significant ($p \leq .05$) difference between the income of those in the treatment(1) and control(0) groups. In the case, we know the treatment assignment mechanism is truly unrelated to covariates, and as such, this is a chance imbalance over income. 
+
+This exercise of creating a balance table and running a series of balance tests is widespread, but fraught. To begin with, this table isn't particularly informative. We are failing to examine the joint distributions of these variables. For example, what if there is marginal covariate balance for women and democrats but there are no female democrats in the treatment group? The possibility of imbalance in the joint distributions of the variables lurks under balance tables. And while it is of course possible to add interactions to a simple balance table, as the number of covariates (and/or factor levels for categorical variables) increases, the more cumbersome this approach becomes. Moreover, even with interactions displayed, one is forced to run many associated balance tests to fish for imbalance. Without an adjustment for multiple testing, this kind of exercise is sure to uncover chance imbalances that need not be of significant concern. Beyond balance testing, what is the researcher to do if imbalance is discovered by the balance table? A justifiable concern is that imbalance found in balance tables will lead researchers to adjust for supposed imbalance with a post-hoc regression adjustment. This opens the door to specification searching.      
+
+In this package, and the associated paper, we propose a completely different approach to balance testing. We start with two basic assertions: 1) in an experiment, treatment assignment should not be systematically related to pre-treatment covariates. Another way to think about this is that it should be impossible to build a good predictive model of treatment assignment using covariates. And 2) classical machine learning methods are powerful for predictions and plainly better tools to detect systematic relationships between treatment and covariates vis-a-vis old school balance tests or manually specified regression model. This will be especially true when the imbalance that's present is subtle, interactive, high-dimensional, etc.   
+
+One simple machine learning approach we can take to assess covariate balance is to build a predictive model of treatment assignment using pre-treatment covariates and check whether it can classify observations into treatment and control groups better than random chance. If the classifier does no better than a coin flip, we have evidence that treatment is indeed orthogonal to covariates. If the classifier can reliably predict who received treatment, something is amiss.
+
+This intuition is formalized in the *classification permutation test* (CPT), developed by Gagnon-Bartsch and Shem-Tov (2019). The test works as follows:
+
+1. Train a classifier to predict treatment from covariates
+2. Record how well it classifies (e.g., accuracy or predicted probability)
+3. Permute the treatment labels randomly and repeat
+4. Compare the real classification performance to the permutation distribution
+
+If the real classifier does much better than the permuted versions, we reject the null hypothesis of balance. The beauty of this approach is that it naturally handles interactions, non-linearities, and high-dimensional covariate spaces—all the things that make traditional balance tables inadequate.
+
+## The `fastcpt` Function
+
+The workhorse of this package is `fastcpt()`, a fast implementation of the classification permutation test. Let's see it in action with our balanced toy data:
+
+```{r, fastcpt balanced}
+# Run the classification permutation test
+cpt_result <- fastcpt(Z = X, T = W, perm.N = 500)
+cpt_result
+```
+
+The test returns a p-value. A high p-value (above your chosen alpha, typically 0.05) means the classifier couldn't distinguish treatment from control better than chance—good news for your experiment.
+ 
+We can also visualize the results:
+
+```{r, fastcpt plot balanced}
+plot(cpt_result)
+```
+
+The plot shows the null distribution of test statistics from permuted data, with a vertical line indicating where our real test statistic falls. If the line is buried in the middle of the distribution, balance looks good.
+
+## When Balance Fails
+
+Now let's see what happens when treatment assignment is contaminated. We'll create a scenario where treatment is partially determined by an interaction between age and income:
+
+```{r, dgp imbalanced}
+# Contaminate treatment: people with above-median age*income interaction 
+# are more likely to be treated
+interaction_term <- scale(X$Age * X$Income)[,1]
+propensity <- plogis(0.8 * interaction_term)  # pushes toward imbalance
+W_bad <- rbinom(n, 1, propensity)
+
+# Run the test
+cpt_bad <- fastcpt(Z = X, T = W_bad, perm.N = 500)
+cpt_bad
+```
+
+```{r, fastcpt plot imbalanced}
+plot(cpt_bad)
+```
+
+Now the test statistic (vertical line) is out in the tail of the null distribution, and the p-value is low. The classifier detected the imbalance that a simple balance table might have missed.
+
+## The `balance` Function: A Complete Diagnostic
+
+For a more comprehensive analysis, the `balance()` function combines the CPT with propensity score visualization and treatment effect estimation:
+
+```{r, balance function}
+# Generate an outcome for demonstration
+Y <- 0.5 * W + 0.3 * X$Age + 0.2 * X$Income/10000 + rnorm(n)
+
+# Run the full balance assessment
+bal <- balance(Y = Y, W = W, X = X, perm.N = 500)
+bal
+```
+
+```{r, balance summary}
+summary(bal)
+```
+
+The summary gives you everything: sample characteristics, the CPT results, propensity score diagnostics, and three treatment effect estimates.
+
+### Understanding the Three Estimators
+
+The `balance()` function reports three treatment effect estimates:
+
+- **Difference in Means (DiM)**: The simple average difference in outcomes. No covariate adjustment whatsoever.
+- **Outcome-adjusted**: Uses a causal forest to model the outcome, but doesn't weight by propensity scores. Think of it as a fancy regression adjustment.
+- **Doubly robust**: Combines outcome modeling with propensity score weighting. More robust to model misspecification.
+
+When balance is good, all three should be similar. When they diverge substantially, that's a red flag worth investigating.
+
+```{r, balance plot}
+plot(bal)
+```
+
+The three-panel plot shows: (A) propensity score distributions for real vs. permuted treatment, (B) the CPT null distribution with your test statistic, and (C) the three treatment effect estimates with confidence intervals.
+
+## Running Balance Without an Outcome
+
+Sometimes you want to check balance before you've even collected outcome data—say, right after randomization. The `balance()` function handles this by making the outcome optional:
+ 
+```{r, balance no outcome}
+# Balance check with no outcome
+bal_no_y <- balance(W = W, X = X, perm.N = 500)
+bal_no_y
+```
+
+```{r, balance no outcome plot}
+plot(bal_no_y)
+```
+
+You still get the CPT and propensity score diagnostics—just no treatment effect estimates.
+
+## Choosing a Classifier
+
+By default, `fastcpt()` and `balance()` use random ferns (`class.method = "ferns"`), which are fast and handle interactions well. You can also use random forests:
+
+```{r, classifier choice, eval=FALSE}
+# Using random forest instead
+cpt_forest <- fastcpt(Z = X, T = W, class.methods = "forest", perm.N = 500)
+```
+
+For most applications, the default ferns classifier works well. Random forests are slightly more powerful but slower.
+
+## Parallel Processing for Large Datasets
+
+For larger datasets or more permutations, you can enable parallel processing:
+
+```{r, parallel example, eval=FALSE}
+# Run in parallel (requires mirai package)
+cpt_parallel <- fastcpt(Z = X, T = W, perm.N = 1000, parallel = TRUE)
+```
+
+## Summary
+
+The `MLbalance` package offers a principled alternative to traditional balance tables and other improvements over cpt:
+
+| Feature                         | Table 1      |     cpt      | MLbalance    |
+|---------------------------------|--------------|--------------|--------------|
+| Tests marginal balance          | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+| Tests joint imbalance           | $\times$     | $\checkmark$ | $\checkmark$ |
+| Single Test statistic           | $\times$     | $\checkmark$ | $\checkmark$ |
+| Treatment Effect Adjustment     | $\times$     | $\times$     | $\checkmark$ |
+| Variable Importance Diagnostics | --           | $\times$     | $\checkmark$ |
+| Parallel processing             | --           | $\times$     | $\checkmark$ |
+| Runtime (2,000 obs x 20 Covs)   | Instant      | One Hour     | One Minute   |
+
+The key functions are:
+
+- `fastcpt()`: The classification permutation test alone
+- `balance()`: CPT + propensity diagnostics + treatment effects
+- `plot()` and `summary()` methods for both 
+
+When your balance test passes, you can report your DiM estimate with confidence. When it fails, the doubly robust estimate provides some protection against the detected imbalance—though you should always investigate *why* balance failed before trusting any estimate.
+
+## References
+
+Gagnon-Bartsch, J., & Shem-Tov, Y. (2019). The classification permutation test: A flexible approach to testing for covariate balance in observational studies. *arXiv preprint arXiv:1908.02748*.
+
