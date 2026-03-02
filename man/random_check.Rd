@@ -10,7 +10,7 @@ random_check(
   X,
   R.seed = 1995,
   grf.seed = 1995,
-  breaks = 15,
+  breaks = 25,
   facet = FALSE
 )
 }
@@ -25,9 +25,21 @@ random_check(
 
 \item{grf.seed}{Random seed used in grf's seed (for replicability).}
 
-\item{breaks}{number of breaks in output histogram. Default is 15.}
+\item{breaks}{Number of breaks in output histogram. Default is 25.}
 
 \item{facet}{facet by treatment assignment. Default is FALSE.}
+}
+\value{
+A named list containing:
+\item{prop.model.real}{Fitted boosted regression forest for real treatment assignment.}
+\item{prop.model.real.tuning}{Tuning parameters from the real propensity model.}
+\item{treat.props.real}{Predicted treatment propensity scores for real assignment.}
+\item{imp.predictors}{Variable importance scores from the real propensity model.}
+\item{prop.model.sim}{Fitted boosted regression forest for simulated/permuted assignment.}
+\item{prop.model.sim.tuning}{Tuning parameters from the simulated propensity model.}
+\item{treat.props.sim}{Predicted treatment propensity scores for simulated assignment.}
+\item{plot.df}{Data frame used to generate the diagnostic plot.}
+\item{plot}{ggplot object showing overlapping propensity score distributions.}
 }
 \description{
 This is the main balance permutation test function. First, the function attempts to model treatment assignment (W_real) as a function of pre-treatment covariates (X). It does so using an honest, boosted random forest (see Ghosal and Hooker 2018) with built-in hyperparameter tuning. This model is used to generate real treatment propensity scores. Then, we build a second boosted random forest model using the same pre-treatment covariates and tuning parameter settings but with either simulated, or randomly permuted, treatment assignment as the outcome variable. The function proceeds to output both the real and null treatment propensity scores as well as diagnostics and a plot comparing the distributions.

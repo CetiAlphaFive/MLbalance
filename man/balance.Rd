@@ -23,7 +23,7 @@ balance(
 
 \method{summary}{balance}(object, ...)
 
-\method{plot}{balance}(x, which = "all", combined = TRUE, breaks = 15, ...)
+\method{plot}{balance}(x, which = "all", combined = TRUE, breaks = 25, ...)
 }
 \arguments{
 \item{Y}{Outcome vector (numeric) or \code{NULL}. If \code{NULL}, treatment effect
@@ -56,7 +56,7 @@ the first factor level is used as control. A message is displayed indicating the
 
 \item{combined}{Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE.}
 
-\item{breaks}{Number of breaks for histograms. Default is 15.}
+\item{breaks}{Number of breaks for histograms. Default is 25.}
 }
 \value{
 A list of class "balance" containing:

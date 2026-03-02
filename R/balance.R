@@ -77,11 +77,19 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   if (length(W) != nrow(X)) {
     stop("W and X must have the same number of observations.", call. = FALSE)
   }
+  # NA/NaN checks
+  if (any(is.na(W)))
+    stop("W contains NA values.", call. = FALSE)
+  if (any(is.na(as.matrix(X))))
+    stop("X contains NA or NaN values. Remove or impute before running balance().", call. = FALSE)
+
   if (!is.null(Y)) {
     if (!is.numeric(Y)) stop("Y must be a numeric vector.", call. = FALSE)
     if (length(Y) != length(W)) {
       stop("Y and W must have the same number of observations.", call. = FALSE)
     }
+    if (any(is.na(Y)))
+      stop("Y contains NA values. Remove or impute before running balance().", call. = FALSE)
   }
   
   # Determine control level
@@ -374,15 +382,15 @@ summary.balance <- function(object, ...) {
   cat("\n")
   
   # Helper function to print results for one arm
-  print_arm_results <- function(arm_name, balance_test, ps_real, ps_null, 
-                                 dim_res, aipw_res, aipw_const_res, cf, passed, 
-                                 alpha, section_prefix = "") {
+  print_arm_results <- function(arm_name, balance_test, ps_real, ps_null,
+                                 dim_res, aipw_res, aipw_const_res, cf, passed,
+                                 alpha) {
     status <- ifelse(passed, "PASS", "FAIL")
-    
+
     # Balance Test
-    cat(sprintf("%s2. CLASSIFICATION PERMUTATION TEST\n", section_prefix))
+    cat("CLASSIFICATION PERMUTATION TEST\n")
     cat("------------------------------------------------------------------------\n")
-    cat(sprintf("   Classifier:                   %s\n", 
+    cat(sprintf("   Classifier:                   %s\n",
                 paste(balance_test$class.methods, collapse = ", ")))
     cat(sprintf("   Number of permutations:       %d\n", balance_test$perm.N))
     cat(sprintf("   Test statistic (observed):    %.4f\n", balance_test$teststat))
@@ -392,9 +400,9 @@ summary.balance <- function(object, ...) {
     cat(sprintf("   Significance level (alpha):   %.2f\n", alpha))
     cat(sprintf("   Result:                       %s\n", status))
     cat("\n")
-    
+
     # Propensity Score Diagnostics
-    cat(sprintf("%s3. PROPENSITY SCORE DIAGNOSTICS (Boosted Regression Forest)\n", section_prefix))
+    cat("PROPENSITY SCORE DIAGNOSTICS (Boosted Regression Forest)\n")
     cat("------------------------------------------------------------------------\n")
     cat("   Real treatment assignment:\n")
     cat(sprintf("      Mean:                      %.4f\n", mean(ps_real)))
@@ -408,9 +416,9 @@ summary.balance <- function(object, ...) {
     cat(sprintf("      Difference in means:       %.4f\n", mean(ps_real) - mean(ps_null)))
     cat(sprintf("      Ratio of SDs:              %.4f\n", stats::sd(ps_real) / stats::sd(ps_null)))
     cat("\n")
-    
+
     # Treatment Effects
-    cat(sprintf("%s4. TREATMENT EFFECT ESTIMATES\n", section_prefix))
+    cat("TREATMENT EFFECT ESTIMATES\n")
     cat("------------------------------------------------------------------------\n")
     if (!is.null(dim_res) && !is.null(aipw_res) && !is.null(aipw_const_res)) {
       cat("   Difference-in-Means (unadjusted):\n")
@@ -422,13 +430,13 @@ summary.balance <- function(object, ...) {
       cat("   Outcome-adjusted (causal forest, no propensity weighting):\n")
       cat(sprintf("      Estimate:                  %.4f\n", aipw_const_res$estimate))
       cat(sprintf("      Standard error:            %.4f\n", aipw_const_res$std.err))
-      cat(sprintf("      95%% CI (inf. jackknife):  [%.4f, %.4f]\n", 
+      cat(sprintf("      95%% CI (normal approx. (IJ SE)):  [%.4f, %.4f]\n",
                   aipw_const_res$ci[1], aipw_const_res$ci[2]))
       cat("\n")
       cat("   Doubly robust (causal forest with propensity weighting):\n")
       cat(sprintf("      Estimate:                  %.4f\n", aipw_res$estimate))
       cat(sprintf("      Standard error:            %.4f\n", aipw_res$std.err))
-      cat(sprintf("      95%% CI (inf. jackknife):  [%.4f, %.4f]\n", 
+      cat(sprintf("      95%% CI (normal approx. (IJ SE)):  [%.4f, %.4f]\n",
                   aipw_res$ci[1], aipw_res$ci[2]))
       if (!is.null(cf)) {
         cat(sprintf("      Number of trees:           %d\n", cf$`_num_trees`))
@@ -454,9 +462,9 @@ summary.balance <- function(object, ...) {
       passed = object$passed,
       alpha = object$alpha
     )
-    
+
     # Interpretation
-    cat("5. INTERPRETATION\n")
+    cat("2. INTERPRETATION\n")
     cat("------------------------------------------------------------------------\n")
     if (object$passed) {
       cat("   The classification permutation test does not reject the null\n")
@@ -491,6 +499,7 @@ summary.balance <- function(object, ...) {
         passed = object$passed[arm],
         alpha = object$alpha
       )
+
     }
     
     # Overall interpretation for multi-arm
@@ -515,7 +524,7 @@ summary.balance <- function(object, ...) {
   }
   
   # Estimator interpretation (only if Y was provided)
-  has_effects <- if (object$multiarm) !is.null(object$dim) else (!is.null(object$dim) && !is.null(object$aipw))
+  has_effects <- !is.null(object$dim) && !is.null(object$aipw) && !is.null(object$aipw_const)
   if (has_effects) {
     cat("   ESTIMATOR GUIDE:\n")
     cat("   - DiM: Simple difference in means, no covariate adjustment.\n")
@@ -534,11 +543,11 @@ summary.balance <- function(object, ...) {
 #' @param x A balance result object.
 #' @param which Character vector specifying which plots to create. Options are "pscores", "null_dist", "effects", or "all".
 #' @param combined Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE. 
-#' @param breaks Number of breaks for histograms. Default is 15.
+#' @param breaks Number of breaks for histograms. Default is 25.
 #' @param ... Additional arguments (currently unused).
 #' @rdname balance
 #' @export
-plot.balance <- function(x, which = "all", combined = TRUE, breaks = 15, ...) {
+plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for plotting.", call. = FALSE)

@@ -1,33 +1,10 @@
 # Suppress R CMD check notes for non-standard evaluation in ggplot
 utils::globalVariables(c("null"))
 
-#' Plot fastcpt Results
-#'
-#' @description
-#' Creates a visualization of the Classification Permutation Test results. Displays the permuted null distribution as a histogram with the observed test statistic overlaid as a vertical line. The plot indicates whether the test passed (p > 0.05) or failed.
-#'
-#' @param x A fastcpt result object as returned by \code{\link{fastcpt}}.
+#' @param x A fastcpt result object (for plot and print methods).
 #' @param breaks Number of breaks for the histogram. Default is 25.
 #' @param ... Additional arguments (currently unused).
-#'
-#' @return A ggplot object displaying the null distribution histogram with the observed test statistic.
-#'
-#' @examples
-#' \dontrun{
-#' # Generate example data
-#' n <- 200
-#' p <- 10
-#' Z <- matrix(rnorm(n * p), n, p)
-#' T <- rep(c(1, 2), each = n/2)
-#'
-#' # Run fast classification permutation test
-#' result <- fastcpt(Z, T, class.methods = "forest", perm.N = 100)
-#'
-#' # Plot the results
-#' plot(result)
-#' }
-#'
-#' @method plot fastcpt
+#' @rdname fastcpt
 #' @export
 plot.fastcpt <- function(x, breaks = 25, ...){
   # package checks
@@ -57,27 +34,6 @@ plot.fastcpt <- function(x, breaks = 25, ...){
   x_min <- floor(min(x$nulldist) * 10) / 10
   x_max <- ceiling(max(c(x$nulldist, testval)) * 10) / 10
 
-  # same theme as the random_check function
-  g_theme <- function(){
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(size = 14, face = "bold", hjust = 0.5),
-      plot.subtitle = ggplot2::element_text(size = 12, face = "bold", hjust = 0.5, color = color_select),
-      panel.background = ggplot2::element_rect(fill = "white", colour = "white", linewidth = 0.5, linetype = "solid"),
-      axis.line = ggplot2::element_line(linewidth = .5, color = "black"),
-      axis.title.x = ggplot2::element_text(size = 12, face = "bold"),
-      axis.title.y = ggplot2::element_text(size = 12, face = "bold"),
-      axis.text.x = ggplot2::element_text(color = "grey30", size = 10),
-      axis.text.y = ggplot2::element_text(color = "grey30", size = 10),
-      panel.grid.major.x = ggplot2::element_line(colour = "grey80"),
-      plot.caption = ggplot2::element_text(hjust = 0),
-      text = ggplot2::element_text(size = 12, family = "serif"),
-      legend.position = c(.1, .75),
-      axis.ticks = ggplot2::element_blank(),
-      legend.background = ggplot2::element_blank(),
-      panel.spacing = ggplot2::unit(2, "lines")
-    )
-  }
-
   # the Gagnon plot
   ggplot2::ggplot(df, ggplot2::aes(x = null)) +
     ggdist::stat_histinterval(
@@ -96,28 +52,13 @@ plot.fastcpt <- function(x, breaks = 25, ...){
       title = "Classification Permutation Test Result",
       subtitle = subtitle_text
     ) +
-    g_theme() +
+    .g_theme(subtitle_color = color_select) +
     ggplot2::scale_x_continuous(limits = c(x_min, x_max), expand = c(0, 0)) +
     ggplot2::scale_y_continuous(expand = c(0, 0))
 }
 
-#' Summary of fastcpt Results
-#'
-#' @description
-#' Prints a formatted summary of the Classification Permutation Test results including p-values, test statistics, and pass/fail status.
-#'
-#' @param object A fastcpt result object as returned by \code{\link{fastcpt}}.
-#' @param ... Additional arguments (currently unused).
-#'
-#' @return Invisibly returns the original object.
-#'
-#' @examples
-#' \dontrun{
-#' result <- fastcpt(Z, T, class.methods = "forest", perm.N = 100)
-#' summary(result)
-#' }
-#'
-#' @method summary fastcpt
+#' @param object A fastcpt result object (for summary method).
+#' @rdname fastcpt
 #' @export
 summary.fastcpt <- function(object, ...) {
 
@@ -218,17 +159,7 @@ summary.fastcpt <- function(object, ...) {
   invisible(object)
 }
 
-#' Print fastcpt Results
-#'
-#' @description
-#' Prints a brief overview of the Classification Permutation Test results.
-#'
-#' @param x A fastcpt result object as returned by \code{\link{fastcpt}}.
-#' @param ... Additional arguments (currently unused).
-#'
-#' @return Invisibly returns the original object.
-#'
-#' @method print fastcpt
+#' @rdname fastcpt
 #' @export
 print.fastcpt <- function(x, ...) {
   alpha <- if (!is.null(x$alpha)) x$alpha else 0.05

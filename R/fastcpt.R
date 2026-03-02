@@ -70,22 +70,30 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
         stop("Package 'RcppNumerical' is required for logistic2fast classifier.", call. = FALSE)
     }
 
+    # Input validation
+    if (!is.matrix(Z) && !is.data.frame(Z))
+        stop("Z must be a matrix or data frame.", call. = FALSE)
+    if (any(is.na(Z)))
+        stop("Z contains NA or NaN values. Remove or impute missing data before running fastcpt().", call. = FALSE)
+    if (any(is.na(T)))
+        stop("T contains NA values.", call. = FALSE)
+
     T = as.factor(T)
-    train.methods = gettrainmethods(class.methods)
-    test.methods = gettestmethods(class.methods)
+    train.methods = .gettrainmethods(class.methods)
+    test.methods = .gettestmethods(class.methods)
     if (is.character(metric))
-        metric = getmetric(metric)
+        metric = .getmetric(metric)
     if (is.character(ensemble.metric))
-        ensemble.metric = getensemble.metric(ensemble.metric)
+        ensemble.metric = .getensemble.metric(ensemble.metric)
     if (is.character(comb.method))
-        comb.method = getcombmethod(comb.method)
+        comb.method = .getcombmethod(comb.method)
     if ((leaveout > 0) && (leaveout < 1))
         leaveout = ceiling(min(table(T)) * leaveout)
     nulldist = matrix(NA, perm.N, length(class.methods) + 1)
     colnames(nulldist) = c(class.methods, "ensemble")
 
     # Get test statistic for real data
-    teststat <- getteststat(Z, T, leaveout, train.methods, test.methods, metric, ensemble.metric, leaveout.N)
+    teststat <- .getteststat(Z, T, leaveout, train.methods, test.methods, metric, ensemble.metric, leaveout.N)
 
     if (paired) {
         T = as.numeric(T) - 1
@@ -95,7 +103,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
             newT[T == 0] = stats::rbinom(length(T)/2, 1, 0.5)
             newT[T == 1] = 1 - newT[T == 0]
             newT = as.factor(newT)
-            nulldist[i, ] = getteststat(Z, newT, leaveout, train.methods,
+            nulldist[i, ] = .getteststat(Z, newT, leaveout, train.methods,
                 test.methods, metric, ensemble.metric, leaveout.N)
             if (progress) utils::setTxtProgressBar(pb, i)
         }
@@ -123,15 +131,15 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
                 out <- matrix(NA, length(ids), length(train.methods) + 1)
                 for (j in seq_along(ids)) {
                     set.seed(perm_seeds[ids[j]])
-                    out[j, ] <- getteststat(Z, perm_Ts[[ids[j]]], leaveout, train.methods,
+                    out[j, ] <- .getteststat(Z, perm_Ts[[ids[j]]], leaveout, train.methods,
                         test.methods, metric, ensemble.metric, leaveout.N)
                 }
                 out
             }, Z = Z, leaveout = leaveout, train.methods = train.methods,
                test.methods = test.methods, metric = metric,
                ensemble.metric = ensemble.metric, leaveout.N = leaveout.N,
-               getteststat = getteststat, train = train,
-               applyclassifiers = applyclassifiers, softmax = softmax,
+               .getteststat = .getteststat, .train = .train,
+               .applyclassifiers = .applyclassifiers, .softmax = .softmax,
                pkgs = .packages(), perm_Ts = perm_Ts, perm_seeds = perm_seeds)[]
 
             # Reassemble results
@@ -142,7 +150,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
             if (progress) pb <- utils::txtProgressBar(min = 0, max = perm.N, style = 3)
             for (i in 1:perm.N) {
                 set.seed(perm_seeds[i])
-                nulldist[i, ] = getteststat(Z, perm_Ts[[i]], leaveout, train.methods,
+                nulldist[i, ] = .getteststat(Z, perm_Ts[[i]], leaveout, train.methods,
                     test.methods, metric, ensemble.metric, leaveout.N)
                 if (progress) utils::setTxtProgressBar(pb, i)
             }
@@ -180,7 +188,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
 
 #' @keywords internal
 #' @noRd
-applyclassifiers <-
+.applyclassifiers <-
 function (tstZ, tstT, classifiers, test.methods, metric, ensemble.metric,
     testistrain = FALSE)
 {
@@ -213,7 +221,7 @@ function (tstZ, tstT, classifiers, test.methods, metric, ensemble.metric,
 
 #' @keywords internal
 #' @noRd
-getcombmethod <-
+.getcombmethod <-
 function (comb.method)
 {
     if (comb.method == "fisher") {
@@ -229,7 +237,7 @@ function (comb.method)
 
 #' @keywords internal
 #' @noRd
-getensemble.metric <-
+.getensemble.metric <-
 function (ensemble.metric)
 {
     if (ensemble.metric == "vote") {
@@ -271,7 +279,7 @@ function (ensemble.metric)
 
 #' @keywords internal
 #' @noRd
-getmetric <-
+.getmetric <-
 function (metric)
 {
     if (metric == "probability") {
@@ -306,7 +314,7 @@ function (metric)
 
 #' @keywords internal
 #' @noRd
-gettestmethod <-
+.gettestmethod <-
 function (method)
 {
     if (method == "forest") {
@@ -319,8 +327,8 @@ function (method)
     else if (method == "ferns") {
         rval = function(Z, classifier, testistrain = FALSE) {
             if (testistrain)
-                return(softmax(classifier))
-            else return(softmax(classifier, Z))
+                return(.softmax(classifier))
+            else return(.softmax(classifier, Z))
         }
     }
     else if (method == "logistic2fast") {
@@ -348,23 +356,23 @@ function (method)
 
 #' @keywords internal
 #' @noRd
-gettestmethods <-
+.gettestmethods <-
 function (class.methods)
 {
     test.methods = list()
-    for (i in 1:length(class.methods)) test.methods[[i]] = gettestmethod(class.methods[i])
+    for (i in 1:length(class.methods)) test.methods[[i]] = .gettestmethod(class.methods[i])
     return(test.methods)
 }
 
 #' @keywords internal
 #' @noRd
-getteststat <-
+.getteststat <-
 function (Z, T, leaveout, train.methods, test.methods, metric,
     ensemble.metric, leaveout.N)
 {
     if (leaveout == 0) {
-        classifiers = train(Z, T, train.methods)
-        return(applyclassifiers(Z, T, classifiers, test.methods,
+        classifiers = .train(Z, T, train.methods)
+        return(.applyclassifiers(Z, T, classifiers, test.methods,
             metric, ensemble.metric, testistrain = TRUE))
     }
     else if ((leaveout == 1) & (leaveout.N == nrow(Z))) {
@@ -375,8 +383,8 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
             trnT = T[-leaveout.i]
             tstZ = Z[leaveout.i, , drop = FALSE]
             tstT = T[leaveout.i]
-            classifiers = train(trnZ, trnT, train.methods)
-            metric.mat[leaveout.i, ] = applyclassifiers(tstZ,
+            classifiers = .train(trnZ, trnT, train.methods)
+            metric.mat[leaveout.i, ] = .applyclassifiers(tstZ,
                 tstT, classifiers, test.methods, metric, ensemble.metric)
         }
         return(apply(metric.mat, 2, mean))
@@ -392,8 +400,8 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
             trnT = T[!testset]
             tstZ = Z[testset, , drop = FALSE]
             tstT = T[testset]
-            classifiers = train(trnZ, trnT, train.methods)
-            metric.mat[leaveout.i, ] = applyclassifiers(tstZ,
+            classifiers = .train(trnZ, trnT, train.methods)
+            metric.mat[leaveout.i, ] = .applyclassifiers(tstZ,
                 tstT, classifiers, test.methods, metric, ensemble.metric)
         }
         return(apply(metric.mat, 2, mean))
@@ -402,7 +410,7 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
 
 #' @keywords internal
 #' @noRd
-gettrainmethod <-
+.gettrainmethod <-
 function (method)
 {
     if (method == "forest") {
@@ -436,17 +444,17 @@ function (method)
 
 #' @keywords internal
 #' @noRd
-gettrainmethods <-
+.gettrainmethods <-
 function (class.methods)
 {
     train.methods = list()
-    for (i in 1:length(class.methods)) train.methods[[i]] = gettrainmethod(class.methods[i])
+    for (i in 1:length(class.methods)) train.methods[[i]] = .gettrainmethod(class.methods[i])
     return(train.methods)
 }
 
 #' @keywords internal
 #' @noRd
-train <-
+.train <-
 function (trnZ, trnT, train.methods)
 {
     rval = list()
@@ -457,7 +465,7 @@ function (trnZ, trnT, train.methods)
 
 #' @keywords internal
 #' @noRd
-softmax <- function(fern.fit, newdata = NULL){
+.softmax <- function(fern.fit, newdata = NULL){
     if (is.null(newdata)) {
         S <- stats::predict(fern.fit, scores = TRUE)
     } else {
