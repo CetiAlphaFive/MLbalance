@@ -47,3 +47,7 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Work-in-progress explainer (not ready for public repo)
+balance.explainer.Rmd
+balance.explainer.html
