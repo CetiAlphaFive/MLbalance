@@ -350,7 +350,7 @@ print.balance <- function(x, ...) {
       cat("\nTreatment Effect Estimates\n")
       cat(LINE)
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "DiM (unadjusted):", x$dim$estimate, x$dim$std.err))
-      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Propensity-Adjusted (IPW):", x$ipw$estimate, x$ipw$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Propensity-Adjusted:", x$ipw$estimate, x$ipw$std.err))
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Outcome-Adjusted:", x$aipw_const$estimate, x$aipw_const$std.err))
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Doubly-Robust (AIPW):", x$aipw$estimate, x$aipw$std.err))
     } else {
@@ -424,7 +424,7 @@ summary.balance <- function(object, ...) {
     cat(sprintf(EST_ROW, "DiM (unadjusted)",
                 dim_res$estimate,        dim_res$std.err,
                 dim_res$ci[1],           dim_res$ci[2]))
-    cat(sprintf(EST_ROW, "Propensity-Adjusted (IPW)",
+    cat(sprintf(EST_ROW, "Propensity-Adjusted",
                 ipw_res$estimate,        ipw_res$std.err,
                 ipw_res$ci[1],           ipw_res$ci[2]))
     cat(sprintf(EST_ROW, "Outcome-Adjusted",
@@ -484,13 +484,12 @@ summary.balance <- function(object, ...) {
 
     cat("   Significant divergences:\n\n")
 
-    # a) DiM vs Propensity-Adjusted (IPW)
+    # a) DiM vs Propensity-Adjusted
     if (r$dim_ipw$sig) {
       cat(sprintf(paste0(
-        "   DiM vs Propensity-Adjusted (IPW): Adjusting for covariate imbalance\n",
-        "   via inverse probability weighting moves the ATE estimate %s by %.4f\n",
-        "   units (z = %.3f, p = %.4f), suggesting that finite-sample covariate\n",
-        "   imbalance shifts the naive estimate %s.\n\n"
+        "   DiM vs Propensity-Adjusted: Propensity score adjustment moves the ATE\n",
+        "   estimate %s by %.4f units (z = %.3f, p = %.4f), suggesting that\n",
+        "   finite-sample covariate imbalance shifts the naive estimate %s.\n\n"
       ), dir_of(r$dim_ipw$diff), abs(r$dim_ipw$diff),
          r$dim_ipw$z, r$dim_ipw$pval, opp_of(r$dim_ipw$diff)))
     }
@@ -702,8 +701,8 @@ summary.balance <- function(object, ...) {
   cat(sprintf("%d. ESTIMATOR GUIDE\n", next_sec))
   cat(LINE)
   cat("   - DiM (unadjusted):        Naive difference in means; no adjustment.\n")
-  cat("   - Propensity-Adjusted (IPW): Reweights by propensity score; corrects for\n")
-  cat("                              covariate imbalance, not covariate-outcome associations.\n")
+  cat("   - Propensity-Adjusted:       Reweights by propensity score; corrects for\n")
+  cat("                               covariate imbalance, not covariate-outcome associations.\n")
   cat("   - Outcome-Adjusted:        Adjusts via outcome regression only; no propensity\n")
   cat("                              weighting.\n")
   cat("   - Doubly-Robust (AIPW):    Combines both adjustments; consistent if either\n")
