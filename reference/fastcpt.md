@@ -41,6 +41,15 @@ fastcpt(
   alpha = 0.05,
   progress = TRUE
 )
+
+# S3 method for class 'fastcpt'
+plot(x, breaks = 25, ...)
+
+# S3 method for class 'fastcpt'
+summary(object, ...)
+
+# S3 method for class 'fastcpt'
+print(x, ...)
 ```
 
 ## Arguments
@@ -144,6 +153,22 @@ fastcpt(
 
   Logical. If TRUE (default), displays a progress bar during permutation
   testing.
+
+- x:
+
+  A fastcpt result object (for plot and print methods).
+
+- breaks:
+
+  Number of breaks for the histogram. Default is 25.
+
+- ...:
+
+  Additional arguments (currently unused).
+
+- object:
+
+  A fastcpt result object (for summary method).
 
 ## Value
 

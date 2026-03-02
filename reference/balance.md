@@ -32,7 +32,7 @@ print(x, ...)
 summary(object, ...)
 
 # S3 method for class 'balance'
-plot(x, which = "all", combined = TRUE, breaks = 15, ...)
+plot(x, which = "all", combined = TRUE, breaks = 25, ...)
 ```
 
 ## Arguments
@@ -103,7 +103,7 @@ plot(x, which = "all", combined = TRUE, breaks = 15, ...)
 
 - breaks:
 
-  Number of breaks for histograms. Default is 15.
+  Number of breaks for histograms. Default is 25.
 
 ## Value
 

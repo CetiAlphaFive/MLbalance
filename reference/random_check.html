@@ -47,7 +47,7 @@ The purpose of this exercise is to compare the real treatment propensity distrib
 <span>  <span class="va">X</span>,</span>
 <span>  R.seed <span class="op">=</span> <span class="fl">1995</span>,</span>
 <span>  grf.seed <span class="op">=</span> <span class="fl">1995</span>,</span>
-<span>  breaks <span class="op">=</span> <span class="fl">15</span>,</span>
+<span>  breaks <span class="op">=</span> <span class="fl">25</span>,</span>
 <span>  facet <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -77,11 +77,42 @@ The purpose of this exercise is to compare the real treatment propensity distrib
 
 
 <dt id="arg-breaks">breaks<a class="anchor" aria-label="anchor" href="#arg-breaks"></a></dt>
-<dd><p>number of breaks in output histogram. Default is 15.</p></dd>
+<dd><p>Number of breaks in output histogram. Default is 25.</p></dd>
 
 
 <dt id="arg-facet">facet<a class="anchor" aria-label="anchor" href="#arg-facet"></a></dt>
 <dd><p>facet by treatment assignment. Default is FALSE.</p></dd>
+
+</dl></div>
+    <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p>A named list containing:</p>
+<dl><dt>prop.model.real</dt>
+<dd><p>Fitted boosted regression forest for real treatment assignment.</p></dd>
+
+<dt>prop.model.real.tuning</dt>
+<dd><p>Tuning parameters from the real propensity model.</p></dd>
+
+<dt>treat.props.real</dt>
+<dd><p>Predicted treatment propensity scores for real assignment.</p></dd>
+
+<dt>imp.predictors</dt>
+<dd><p>Variable importance scores from the real propensity model.</p></dd>
+
+<dt>prop.model.sim</dt>
+<dd><p>Fitted boosted regression forest for simulated/permuted assignment.</p></dd>
+
+<dt>prop.model.sim.tuning</dt>
+<dd><p>Tuning parameters from the simulated propensity model.</p></dd>
+
+<dt>treat.props.sim</dt>
+<dd><p>Predicted treatment propensity scores for simulated assignment.</p></dd>
+
+<dt>plot.df</dt>
+<dd><p>Data frame used to generate the diagnostic plot.</p></dd>
+
+<dt>plot</dt>
+<dd><p>ggplot object showing overlapping propensity score distributions.</p></dd>
 
 </dl></div>
 

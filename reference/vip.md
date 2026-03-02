@@ -16,13 +16,19 @@ vip(model)
 
   Trained GRF Model Object
 
+## Value
+
+A data frame with columns `varname` (column names of the input data) and
+`vip` (variable importance scores), sorted in decreasing order of
+importance.
+
 ## Examples
 
 ``` r
+if (FALSE) { # \dontrun{
 x <- data.frame(X1 = rnorm(1000))
 y <- rnorm(1000)
-model <- grf::regression_forest(X = x,Y = y)
+model <- grf::regression_forest(X = x, Y = y)
 vip(model)
-#>   varname vip
-#> 1      X1   1
+} # }
 ```

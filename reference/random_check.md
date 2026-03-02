@@ -32,7 +32,7 @@ random_check(
   X,
   R.seed = 1995,
   grf.seed = 1995,
-  breaks = 15,
+  breaks = 25,
   facet = FALSE
 )
 ```
@@ -62,11 +62,51 @@ random_check(
 
 - breaks:
 
-  number of breaks in output histogram. Default is 15.
+  Number of breaks in output histogram. Default is 25.
 
 - facet:
 
   facet by treatment assignment. Default is FALSE.
+
+## Value
+
+A named list containing:
+
+- prop.model.real:
+
+  Fitted boosted regression forest for real treatment assignment.
+
+- prop.model.real.tuning:
+
+  Tuning parameters from the real propensity model.
+
+- treat.props.real:
+
+  Predicted treatment propensity scores for real assignment.
+
+- imp.predictors:
+
+  Variable importance scores from the real propensity model.
+
+- prop.model.sim:
+
+  Fitted boosted regression forest for simulated/permuted assignment.
+
+- prop.model.sim.tuning:
+
+  Tuning parameters from the simulated propensity model.
+
+- treat.props.sim:
+
+  Predicted treatment propensity scores for simulated assignment.
+
+- plot.df:
+
+  Data frame used to generate the diagnostic plot.
+
+- plot:
+
+  ggplot object showing overlapping propensity score distributions.
 
 ## Examples
 
