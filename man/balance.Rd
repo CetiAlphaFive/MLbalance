@@ -62,6 +62,7 @@ the first factor level is used as control. A message is displayed indicating the
 A list of class "balance" containing:
 \item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
 \item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{ipw}{IPW estimate using propensity scores from the boosted regression forest, with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 \item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 \item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}

@@ -28,6 +28,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @return A list of class "balance" containing:
 #' \item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
 #' \item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided). For multi-arm, a named list.}
+#' \item{ipw}{IPW estimate using propensity scores from the boosted regression forest, with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 #' \item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 #' \item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 #' \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
@@ -142,6 +143,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   pscores_real_list <- list()
   pscores_null_list <- list()
   dim_results <- list()
+  ipw_results <- list()
   aipw_results <- list()
   aipw_const_results <- list()
   cf_list <- list()
@@ -218,7 +220,19 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         std.err = dim_se,
         ci = dim_ci
       )
-      
+
+      # IPW estimate using propensity scores from boosted forest (already fitted above)
+      e_hat <- pscores_real_list[[arm_name]]
+      ipw_scores <- W_binary * Y_sub / e_hat - (1 - W_binary) * Y_sub / (1 - e_hat)
+      ipw_est <- mean(ipw_scores)
+      ipw_se  <- stats::sd(ipw_scores) / sqrt(length(ipw_scores))
+
+      ipw_results[[arm_name]] <- list(
+        estimate = ipw_est,
+        std.err  = ipw_se,
+        ci       = ipw_est + c(-1, 1) * stats::qnorm(0.975) * ipw_se
+      )
+
       # Fit causal forest and get AIPW estimate (full model)
       cf <- grf::causal_forest(
         X = X_matrix_sub,
@@ -263,6 +277,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     result <- list(
       balance_test = balance_tests[[1]],
       dim = if (length(dim_results) > 0) dim_results[[1]] else NULL,
+      ipw = if (length(ipw_results) > 0) ipw_results[[1]] else NULL,
       aipw = if (length(aipw_results) > 0) aipw_results[[1]] else NULL,
       aipw_const = if (length(aipw_const_results) > 0) aipw_const_results[[1]] else NULL,
       passed = unname(passed_vec[1]),
@@ -282,6 +297,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     result <- list(
       balance_test = balance_tests,
       dim = if (length(dim_results) > 0) dim_results else NULL,
+      ipw = if (length(ipw_results) > 0) ipw_results else NULL,
       aipw = if (length(aipw_results) > 0) aipw_results else NULL,
       aipw_const = if (length(aipw_const_results) > 0) aipw_const_results else NULL,
       passed = passed_vec,
@@ -312,8 +328,9 @@ print.balance <- function(x, ...) {
     status <- ifelse(x$passed, "PASS", "FAIL")
     cat(sprintf("  Control: '%s'\n", x$control))
     cat(sprintf("  Balance test p-value: %.4f (%s)\n", x$balance_test$pval, status))
-    if (!is.null(x$dim) && !is.null(x$aipw) && !is.null(x$aipw_const)) {
+    if (!is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$aipw_const)) {
       cat(sprintf("  DiM estimate:         %.4f (SE: %.4f)\n", x$dim$estimate, x$dim$std.err))
+      cat(sprintf("  IPW estimate:         %.4f (SE: %.4f)\n", x$ipw$estimate, x$ipw$std.err))
       cat(sprintf("  Outcome adj. (CF):    %.4f (SE: %.4f)\n", x$aipw_const$estimate, x$aipw_const$std.err))
       cat(sprintf("  Doubly robust (CF):   %.4f (SE: %.4f)\n", x$aipw$estimate, x$aipw$std.err))
     } else {
@@ -330,11 +347,13 @@ print.balance <- function(x, ...) {
       cat(sprintf("  [%s vs %s]\n", arm, x$control))
       cat(sprintf("    Balance test p-value: %.4f (%s)\n", x$balance_test[[arm]]$pval, status))
       if (!is.null(x$dim) && !is.null(x$dim[[arm]])) {
-        cat(sprintf("    DiM estimate:         %.4f (SE: %.4f)\n", 
+        cat(sprintf("    DiM estimate:         %.4f (SE: %.4f)\n",
                     x$dim[[arm]]$estimate, x$dim[[arm]]$std.err))
-        cat(sprintf("    Outcome adj. (CF):    %.4f (SE: %.4f)\n", 
+        cat(sprintf("    IPW estimate:         %.4f (SE: %.4f)\n",
+                    x$ipw[[arm]]$estimate, x$ipw[[arm]]$std.err))
+        cat(sprintf("    Outcome adj. (CF):    %.4f (SE: %.4f)\n",
                     x$aipw_const[[arm]]$estimate, x$aipw_const[[arm]]$std.err))
-        cat(sprintf("    Doubly robust (CF):   %.4f (SE: %.4f)\n", 
+        cat(sprintf("    Doubly robust (CF):   %.4f (SE: %.4f)\n",
                     x$aipw[[arm]]$estimate, x$aipw[[arm]]$std.err))
       } else {
         cat("    Outcome Y not provided: skipping treatment effect estimates.\n")
@@ -383,7 +402,7 @@ summary.balance <- function(object, ...) {
   
   # Helper function to print results for one arm
   print_arm_results <- function(arm_name, balance_test, ps_real, ps_null,
-                                 dim_res, aipw_res, aipw_const_res, cf, passed,
+                                 dim_res, ipw_res, aipw_res, aipw_const_res, cf, passed,
                                  alpha) {
     status <- ifelse(passed, "PASS", "FAIL")
 
@@ -420,12 +439,18 @@ summary.balance <- function(object, ...) {
     # Treatment Effects
     cat("TREATMENT EFFECT ESTIMATES\n")
     cat("------------------------------------------------------------------------\n")
-    if (!is.null(dim_res) && !is.null(aipw_res) && !is.null(aipw_const_res)) {
+    if (!is.null(dim_res) && !is.null(ipw_res) && !is.null(aipw_res) && !is.null(aipw_const_res)) {
       cat("   Difference-in-Means (unadjusted):\n")
       cat(sprintf("      Estimate:                  %.4f\n", dim_res$estimate))
       cat(sprintf("      Standard error:            %.4f\n", dim_res$std.err))
-      cat(sprintf("      95%% CI (normal approx.):  [%.4f, %.4f]\n", 
+      cat(sprintf("      95%% CI (normal approx.):  [%.4f, %.4f]\n",
                   dim_res$ci[1], dim_res$ci[2]))
+      cat("\n")
+      cat("   IPW (propensity-weighted, no outcome adjustment):\n")
+      cat(sprintf("      Estimate:                  %.4f\n", ipw_res$estimate))
+      cat(sprintf("      Standard error:            %.4f\n", ipw_res$std.err))
+      cat(sprintf("      95%% CI (normal approx.):  [%.4f, %.4f]\n",
+                  ipw_res$ci[1], ipw_res$ci[2]))
       cat("\n")
       cat("   Outcome-adjusted (causal forest, no propensity weighting):\n")
       cat(sprintf("      Estimate:                  %.4f\n", aipw_const_res$estimate))
@@ -456,6 +481,7 @@ summary.balance <- function(object, ...) {
       ps_real = object$pscores_real,
       ps_null = object$pscores_null,
       dim_res = object$dim,
+      ipw_res = object$ipw,
       aipw_res = object$aipw,
       aipw_const_res = object$aipw_const,
       cf = object$cf,
@@ -493,6 +519,7 @@ summary.balance <- function(object, ...) {
         ps_real = object$pscores_real[[arm]],
         ps_null = object$pscores_null[[arm]],
         dim_res = if (!is.null(object$dim)) object$dim[[arm]] else NULL,
+        ipw_res = if (!is.null(object$ipw)) object$ipw[[arm]] else NULL,
         aipw_res = if (!is.null(object$aipw)) object$aipw[[arm]] else NULL,
         aipw_const_res = if (!is.null(object$aipw_const)) object$aipw_const[[arm]] else NULL,
         cf = if (!is.null(object$cf)) object$cf[[arm]] else NULL,
@@ -524,14 +551,17 @@ summary.balance <- function(object, ...) {
   }
   
   # Estimator interpretation (only if Y was provided)
-  has_effects <- !is.null(object$dim) && !is.null(object$aipw) && !is.null(object$aipw_const)
+  has_effects <- !is.null(object$dim) && !is.null(object$ipw) && !is.null(object$aipw) && !is.null(object$aipw_const)
   if (has_effects) {
-    cat("   ESTIMATOR GUIDE:\n")
-    cat("   - DiM: Simple difference in means, no covariate adjustment.\n")
-    cat("   - Outcome-adjusted: Uses causal forest for outcome regression only.\n")
-    cat("   - Doubly robust: Combines outcome regression with propensity weighting.\n")
-    cat("   If balance passes, all three should be similar. Large differences\n")
-    cat("   may indicate model misspecification or residual confounding.\n")
+    cat("   ESTIMATOR COMPARISON GUIDE:\n")
+    cat("   - DiM: Unadjusted difference in means (baseline).\n")
+    cat("   - IPW: Reweights by propensity score; corrects for imbalance only.\n")
+    cat("   - Outcome-adjusted: Adjusts for covariates in outcome model only.\n")
+    cat("   - Doubly robust (AIPW): Combines both adjustments.\n")
+    cat("   Interpretation:\n")
+    cat("   * DiM vs IPW differ          -> imbalance is biasing the unadjusted estimate.\n")
+    cat("   * DiM vs Outcome adj. differ -> covariates predict the outcome.\n")
+    cat("   * DiM vs AIPW differ         -> could be imbalance, outcome prediction, or both.\n")
     cat("\n")
   }
   
@@ -584,7 +614,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     )
   }
   
-  has_effects <- !is.null(x$dim) && !is.null(x$aipw) && !is.null(x$aipw_const)
+  has_effects <- !is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$aipw_const)
   
   if (length(which) == 1 && which == "all") {
     which <- if (has_effects) c("pscores", "null_dist", "effects") else c("pscores", "null_dist")
@@ -679,16 +709,17 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     # Panel C: Treatment effect estimates with ggdist
     if ("effects" %in% which && has_effects) {
       # Colors for estimators
-      col_dim <- "#004225"       # British racing green
-      col_aipw_const <- "#5ab0c0" # Teal (matching pdp)
-      col_aipw <- "#FF8C00"      # Dark orange
-      
-      # Build data for ggdist (three estimators)
+      col_dim        <- "#004225"   # British racing green
+      col_ipw        <- "#8B1A8B"   # Dark purple
+      col_aipw_const <- "#5ab0c0"   # Teal
+      col_aipw       <- "#FF8C00"   # Dark orange
+
+      # Build data for ggdist (four estimators)
       effect_df <- data.frame(
-        estimator = factor(c("Difference\nin Means", "Outcome\nAdjusted", "Doubly\nRobust"), 
-                           levels = c("Difference\nin Means", "Outcome\nAdjusted", "Doubly\nRobust")),
-        estimate = c(x$dim$estimate, x$aipw_const$estimate, x$aipw$estimate),
-        se = c(x$dim$std.err, x$aipw_const$std.err, x$aipw$std.err)
+        estimator = factor(c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust"),
+                           levels = c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust")),
+        estimate = c(x$dim$estimate, x$ipw$estimate, x$aipw_const$estimate, x$aipw$estimate),
+        se = c(x$dim$std.err, x$ipw$std.err, x$aipw_const$std.err, x$aipw$std.err)
       )
       
       # Create distributional data for ggdist
@@ -704,7 +735,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           point_size = 3,
           interval_size_range = c(0.8, 2.5)
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_aipw_const, col_aipw)) +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw)) +
         g_theme() +
         ggplot2::labs(
           title = "C. Treatment Effect Estimates",
@@ -846,18 +877,19 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     # Panel C: Treatment effect estimates (faceted by arm)
     if ("effects" %in% which && has_effects) {
       # Colors for estimators
-      col_dim <- "#004225"       # British racing green
-      col_aipw_const <- "#5ab0c0" # Teal
-      col_aipw <- "#FF8C00"      # Dark orange
-      
+      col_dim        <- "#004225"   # British racing green
+      col_ipw        <- "#8B1A8B"   # Dark purple
+      col_aipw_const <- "#5ab0c0"   # Teal
+      col_aipw       <- "#FF8C00"   # Dark orange
+
       # Build combined data frame for all arms
       effect_df_list <- lapply(x$arms, function(arm) {
         data.frame(
           arm = sprintf("%s vs %s", arm, x$control),
-          estimator = factor(c("Difference\nin Means", "Outcome\nAdjusted", "Doubly\nRobust"), 
-                             levels = c("Difference\nin Means", "Outcome\nAdjusted", "Doubly\nRobust")),
-          estimate = c(x$dim[[arm]]$estimate, x$aipw_const[[arm]]$estimate, x$aipw[[arm]]$estimate),
-          se = c(x$dim[[arm]]$std.err, x$aipw_const[[arm]]$std.err, x$aipw[[arm]]$std.err)
+          estimator = factor(c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust"),
+                             levels = c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust")),
+          estimate = c(x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw_const[[arm]]$estimate, x$aipw[[arm]]$estimate),
+          se = c(x$dim[[arm]]$std.err, x$ipw[[arm]]$std.err, x$aipw_const[[arm]]$std.err, x$aipw[[arm]]$std.err)
         )
       })
       effect_df <- do.call(rbind, effect_df_list)
@@ -876,7 +908,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           point_size = 3,
           interval_size_range = c(0.8, 2.5)
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_aipw_const, col_aipw)) +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw)) +
         ggplot2::facet_wrap(~ arm) +
         g_theme() +
         ggplot2::labs(
