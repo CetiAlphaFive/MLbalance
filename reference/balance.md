@@ -119,6 +119,12 @@ A list of class "balance" containing:
   Difference-in-means estimate with standard error and confidence
   interval (only if `Y` is provided). For multi-arm, a named list.
 
+- ipw:
+
+  IPW estimate using propensity scores from the boosted regression
+  forest, with SE and CI (only if `Y` is provided). For multi-arm, a
+  named list.
+
 - aipw:
 
   Doubly robust estimate from causal forest (with propensity weighting)

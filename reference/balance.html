@@ -150,6 +150,9 @@ the first factor level is used as control. A message is displayed indicating the
 <dt>dim</dt>
 <dd><p>Difference-in-means estimate with standard error and confidence interval (only if <code>Y</code> is provided). For multi-arm, a named list.</p></dd>
 
+<dt>ipw</dt>
+<dd><p>IPW estimate using propensity scores from the boosted regression forest, with SE and CI (only if <code>Y</code> is provided). For multi-arm, a named list.</p></dd>
+
 <dt>aipw</dt>
 <dd><p>Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if <code>Y</code> is provided). For multi-arm, a named list.</p></dd>
 
