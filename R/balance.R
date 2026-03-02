@@ -221,52 +221,68 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         ci = dim_ci
       )
 
-      # IPW estimate using propensity scores from boosted forest (already fitted above)
       e_hat <- pscores_real_list[[arm_name]]
-      ipw_scores <- W_binary * Y_sub / e_hat - (1 - W_binary) * Y_sub / (1 - e_hat)
-      ipw_est <- mean(ipw_scores)
-      ipw_se  <- stats::sd(ipw_scores) / sqrt(length(ipw_scores))
 
-      ipw_results[[arm_name]] <- list(
-        estimate = ipw_est,
-        std.err  = ipw_se,
-        ci       = ipw_est + c(-1, 1) * stats::qnorm(0.975) * ipw_se
-      )
-
-      # Fit causal forest and get AIPW estimate (full model)
-      cf <- grf::causal_forest(
+      # Shared outcome model (boosted RF), used by all outcome-adjusting forests
+      outcome_forest <- grf::boosted_regression_forest(
         X = X_matrix_sub,
         Y = Y_sub,
-        W = W_binary,
-        seed = seed,
+        honesty = TRUE,
+        tune.parameters = "all",
+        seed = seed
+      )
+      Y_hat <- as.numeric(outcome_forest$predictions)
+
+      # IPW: boosted-RF propensity, flat outcome model (no covariate adjustment)
+      cf_ipw <- grf::causal_forest(
+        X     = X_matrix_sub,
+        Y     = Y_sub,
+        W     = W_binary,
+        W.hat = e_hat,
+        Y.hat = rep(mean(Y_sub), length(Y_sub)),
+        seed  = seed,
+        num.trees = 2000
+      )
+      ate_ipw <- grf::average_treatment_effect(cf_ipw, target.sample = "all")
+      ipw_results[[arm_name]] <- list(
+        estimate = ate_ipw["estimate"],
+        std.err  = ate_ipw["std.err"],
+        ci       = ate_ipw["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_ipw["std.err"]
+      )
+
+      # Outcome-adjusted: constant propensity, boosted-RF outcome model
+      cf_const <- grf::causal_forest(
+        X     = X_matrix_sub,
+        Y     = Y_sub,
+        W     = W_binary,
+        W.hat = rep(mean(W_binary), length(W_binary)),
+        Y.hat = Y_hat,
+        seed  = seed,
+        num.trees = 2000
+      )
+      ate_const <- grf::average_treatment_effect(cf_const, target.sample = "all")
+      aipw_const_results[[arm_name]] <- list(
+        estimate = ate_const["estimate"],
+        std.err  = ate_const["std.err"],
+        ci       = ate_const["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_const["std.err"]
+      )
+
+      # Doubly robust (AIPW): boosted-RF propensity + boosted-RF outcome model
+      cf <- grf::causal_forest(
+        X     = X_matrix_sub,
+        Y     = Y_sub,
+        W     = W_binary,
+        W.hat = e_hat,
+        Y.hat = Y_hat,
+        seed  = seed,
         num.trees = 2000
       )
       cf_list[[arm_name]] <- cf
-      
       ate <- grf::average_treatment_effect(cf, target.sample = "all")
-      
       aipw_results[[arm_name]] <- list(
         estimate = ate["estimate"],
-        std.err = ate["std.err"],
-        ci = ate["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate["std.err"]
-      )
-      
-      # AIPW with constant propensity score (marginal probability)
-      cf_const <- grf::causal_forest(
-        X = X_matrix_sub,
-        Y = Y_sub,
-        W = W_binary,
-        W.hat = rep(mean(W_binary), length(W_binary)),
-        seed = seed,
-        num.trees = 2000
-      )
-      
-      ate_const <- grf::average_treatment_effect(cf_const, target.sample = "all")
-      
-      aipw_const_results[[arm_name]] <- list(
-        estimate = ate_const["estimate"],
-        std.err = ate_const["std.err"],
-        ci = ate_const["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_const["std.err"]
+        std.err  = ate["std.err"],
+        ci       = ate["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate["std.err"]
       )
     }
   }
