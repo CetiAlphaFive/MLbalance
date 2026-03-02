@@ -467,6 +467,40 @@ summary.balance <- function(object, ...) {
         cat(sprintf("      Number of trees:           %d\n", cf$`_num_trees`))
       }
       cat("\n")
+
+      # Estimator divergence tests
+      cat("ESTIMATOR DIVERGENCE TESTS\n")
+      cat("------------------------------------------------------------------------\n")
+      diverge_pairs <- list(
+        list(label = "DiM vs IPW",
+             e1 = dim_res$estimate,        se1 = dim_res$std.err,
+             e2 = ipw_res$estimate,        se2 = ipw_res$std.err),
+        list(label = "DiM vs Outcome-adjusted",
+             e1 = dim_res$estimate,        se1 = dim_res$std.err,
+             e2 = aipw_const_res$estimate, se2 = aipw_const_res$std.err),
+        list(label = "DiM vs Doubly robust",
+             e1 = dim_res$estimate,        se1 = dim_res$std.err,
+             e2 = aipw_res$estimate,       se2 = aipw_res$std.err),
+        list(label = "IPW vs Doubly robust",
+             e1 = ipw_res$estimate,        se1 = ipw_res$std.err,
+             e2 = aipw_res$estimate,       se2 = aipw_res$std.err)
+      )
+      cat(sprintf("   %-26s %10s %9s %7s %8s\n",
+                  "Comparison", "Difference", "SE(diff)", "z-stat", "p-value"))
+      cat(sprintf("   %s\n", strrep("-", 64)))
+      any_sig <- FALSE
+      for (dp in diverge_pairs) {
+        est_diff <- dp$e1 - dp$e2
+        se_diff  <- sqrt(dp$se1^2 + dp$se2^2)
+        z_stat   <- est_diff / se_diff
+        pval     <- 2 * stats::pnorm(-abs(z_stat))
+        sig      <- if (pval < alpha) " *" else "  "
+        if (pval < alpha) any_sig <- TRUE
+        cat(sprintf("   %-26s %10.4f %9.4f %7.3f %8.4f%s\n",
+                    dp$label, est_diff, se_diff, z_stat, pval, sig))
+      }
+      if (any_sig) cat(sprintf("   * p < %.2f\n", alpha))
+      cat("\n")
     } else {
       cat("   Outcome Y not provided: skipping treatment effect estimates.\n")
       cat("\n")
