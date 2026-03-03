@@ -123,17 +123,33 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   #Print simple count table(s)
   if(length(unique(W_real)) <= 2 & !is.null(W_sim)){cat("Simple Count Table(s)\n\n"); print(table(W_real)); print(table(W_sim))}
 
+  # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
+  X_grf <- as.data.frame(X)
+  for (col in names(X_grf)) {
+    if (is.character(X_grf[[col]])) X_grf[[col]] <- as.factor(X_grf[[col]])
+    if (is.ordered(X_grf[[col]]))   X_grf[[col]] <- as.numeric(X_grf[[col]])
+  }
+  if (any(sapply(X_grf, is.factor))) {
+    X_matrix <- stats::model.matrix(~ . - 1, data = X_grf)
+  } else {
+    X_matrix <- as.matrix(X_grf)
+  }
+
   #Check if simulated treatment assignments provided, if not, permute the real treatment assignment vector.
-  if(is.null(W_sim) == TRUE){W_sim <- sample(W_real,size = length(W_real),replace = FALSE)}
+  if(is.null(W_sim) == TRUE){
+    set.seed(R.seed + 1L)
+    W_sim <- sample(W_real, size = length(W_real), replace = FALSE)
+  }
 
   # Build a treatment propensity model with the real treatment assignment vector. Boosted reg forest from grf.
-  g.real  <- grf::boosted_regression_forest(X = X, Y = W_real, honesty = T, tune.parameters = "all", seed = grf.seed)
+  g.real  <- grf::boosted_regression_forest(X = X_matrix, Y = W_real, honesty = T, tune.parameters = "all", seed = grf.seed)
 
   # Build a treatment propensity model with the simulated treatment assignment vector. Boosted reg forest from grf.
-  g.sim   <- grf::boosted_regression_forest(X = X, Y = W_sim,  honesty = T, tune.parameters = "all", seed = grf.seed)
+  g.sim   <- grf::boosted_regression_forest(X = X_matrix, Y = W_sim,  honesty = T, tune.parameters = "all", seed = grf.seed)
 
   # Build a data frame for the diagnostics plot
-  plot.df <- data.frame(var = factor(c(rep("Real",NROW(g.real$predictions)),rep("Null",NROW(g.sim$predictions)))),
+  plot.df <- data.frame(var = factor(c(rep("Real",NROW(g.real$predictions)),rep("Null",NROW(g.sim$predictions))),
+                                     levels = c("Null", "Real")),
                         treat = c(W_real, W_sim),
                         val = c(g.real$predictions,g.sim$predictions))
 

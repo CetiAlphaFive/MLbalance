@@ -79,6 +79,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
         stop("T contains NA values.", call. = FALSE)
 
     T = as.factor(T)
+    set.seed(R.seed)
     train.methods = .gettrainmethods(class.methods)
     test.methods = .gettestmethods(class.methods)
     if (is.character(metric))
@@ -127,6 +128,8 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
             results <- mirai::mirai_map(chunk_ids, function(ids) {
                 # Load packages in worker
                 for (pkg in pkgs) require(pkg, character.only = TRUE, quietly = TRUE)
+                # Prevent ranger thread oversubscription inside workers
+                options(fastcpt.num.threads = 1L)
 
                 out <- matrix(NA, length(ids), length(train.methods) + 1)
                 for (j in seq_along(ids)) {
@@ -415,12 +418,13 @@ function (method)
 {
     if (method == "forest") {
         rval = function(Z, T) {
-            return(ranger::ranger(T ~ ., data = data.frame(T = T, Z), probability = TRUE, num.trees = 500L, num.threads = parallel::detectCores()-1))
+            n_threads <- getOption("fastcpt.num.threads", parallel::detectCores() - 1L)
+            return(ranger::ranger(T ~ ., data = data.frame(T = T, Z), probability = TRUE, num.trees = 500L, num.threads = n_threads))
         }
     }
     else if (method == "ferns") {
         rval = function(Z, T) {
-            return(rFerns::rFerns(T ~ ., importance = "none", ferns = 1000L, depth = 5L, data = data.frame(T = T, Z)))
+            return(rFerns::rFerns(T ~ ., importance = "none", ferns = 500L, depth = 5L, data = data.frame(T = T, Z)))
         }
     }
     else if (method == "logistic2fast") {

@@ -1,6 +1,7 @@
 # Suppress R CMD check notes for non-standard evaluation
 utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", "comparison",
-                         "mean_real", "mean_null", "testval", "pval", "status_text", "color"))
+                         "mean_real", "mean_null", "testval", "pval", "status_text", "color",
+                         "weight"))
 
 #' Complete Balance Assessment and Treatment Effect Estimation
 #'
@@ -62,18 +63,18 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' }
 #'
 #' @export
-balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = "ferns", seed = 1995, 
+balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = "ferns", seed = 1995,
                     control = NULL, fastcpt.args = list()) {
-  
+
   # Check for grf
   if (!requireNamespace("grf", quietly = TRUE)) {
     stop("Package 'grf' is required for propensity score modeling (and optional treatment effect estimation).", call. = FALSE)
   }
-  
+
   # Input validation
   W_levels <- unique(W)
   n_arms <- length(W_levels)
-  
+
   if (n_arms < 2) stop("W must have at least 2 unique values.", call. = FALSE)
   if (length(W) != nrow(X)) {
     stop("W and X must have the same number of observations.", call. = FALSE)
@@ -92,20 +93,20 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     if (any(is.na(Y)))
       stop("Y contains NA values. Remove or impute before running balance().", call. = FALSE)
   }
-  
+
   # Determine control level
   W_factor <- as.factor(W)
   all_levels <- levels(W_factor)
-  
+
   if (is.null(control)) {
     control <- all_levels[1]
     if (n_arms > 2) {
-      message(sprintf("Multi-arm treatment detected (%d arms). Using '%s' as control (first factor level).\n  To specify a different control, use the 'control' argument.", 
+      message(sprintf("Multi-arm treatment detected (%d arms). Using '%s' as control (first factor level).\n  To specify a different control, use the 'control' argument.",
                       n_arms, control))
     }
   } else {
     if (!(control %in% all_levels)) {
-      stop(sprintf("Specified control '%s' not found in W. Available levels: %s", 
+      stop(sprintf("Specified control '%s' not found in W. Available levels: %s",
                    control, paste(all_levels, collapse = ", ")), call. = FALSE)
     }
     # Reorder factor levels so control is first
@@ -113,32 +114,37 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     all_levels <- levels(W_factor)
     message(sprintf("Using '%s' as control group.", control))
   }
-  
+
   # Treatment arms (excluding control)
   treatment_arms <- setdiff(all_levels, control)
   multiarm <- n_arms > 2
-  
-  # Convert X to matrix, handling factors for grf
+
+  # Convert X to data frame; X_df is passed to fastcpt (ranger/ferns handle factors natively)
   X_df <- as.data.frame(X)
-  has_factors <- any(sapply(X_df, is.factor) | sapply(X_df, is.character))
-  
+
+  # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
+  X_grf <- X_df
+  for (col in names(X_grf)) {
+    if (is.character(X_grf[[col]])) X_grf[[col]] <- as.factor(X_grf[[col]])
+    if (is.ordered(X_grf[[col]]))   X_grf[[col]] <- as.numeric(X_grf[[col]])
+  }
+  has_factors <- any(sapply(X_grf, is.factor))
   if (has_factors) {
-    # Expand factors to dummies for grf
-    X_matrix <- stats::model.matrix(~ . - 1, data = X_df)
-    # Check for high-cardinality factors
+    X_matrix <- stats::model.matrix(~ . - 1, data = X_grf)
     n_cols <- ncol(X_matrix)
     if (n_cols > ncol(X_df) * 5) {
-      warning("Factor expansion created many columns. Consider collapsing high-cardinality factors.", 
+      warning("Factor expansion created many columns. Consider collapsing high-cardinality factors.",
               call. = FALSE)
     }
   } else {
-    X_matrix <- as.matrix(X_df)
+    X_matrix <- as.matrix(X_grf)
   }
-  
+
   # Set seed
   set.seed(seed)
-  
+
   # Initialize storage for results
+  balance_test_joint <- NULL
   balance_tests <- list()
   pscores_real_list <- list()
   pscores_null_list <- list()
@@ -147,65 +153,93 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   aipw_results <- list()
   aipw_const_results <- list()
   cf_list <- list()
+  ate_cov_list <- list()
+  overlap_flag_list <- list()
+  overlap_results <- list()
+  n_extreme_list <- list()
   passed_vec <- c()
   n_per_arm <- list()
   vip_list <- list()
-  
+
+  # For multi-arm: single joint K-class balance test on full data
+  if (multiarm) {
+    if (class.method == "logistic2fast") {
+      stop("logistic2fast only supports binary treatment. Use 'ferns' or 'forest' for multi-arm.", call. = FALSE)
+    }
+    fastcpt_base_args <- list(
+      Z = X_df, T = W_factor,
+      class.methods = class.method,
+      perm.N = perm.N, alpha = alpha, R.seed = seed
+    )
+    fastcpt_all_args <- utils::modifyList(fastcpt_base_args, fastcpt.args)
+    balance_test_joint <- do.call(fastcpt, fastcpt_all_args)
+    passed_joint <- balance_test_joint$pval > alpha
+  }
+
   # Loop over each treatment arm (pairwise vs control)
   for (arm in treatment_arms) {
     arm_name <- if (multiarm) arm else "treated"
-    
+
     # Subset to control + this arm
     idx <- W_factor %in% c(control, arm)
     W_binary <- as.integer(W_factor[idx] == arm)  # 1 = treatment arm, 0 = control
     X_sub <- X_df[idx, , drop = FALSE]
     X_matrix_sub <- X_matrix[idx, , drop = FALSE]
     Y_sub <- if (!is.null(Y)) Y[idx] else NULL
-    
+
     n_per_arm[[arm_name]] <- list(
       control = sum(W_binary == 0),
       treated = sum(W_binary == 1)
     )
-    
-    # 1. Run fastcpt for formal balance test
-    fastcpt_base_args <- list(
-      Z = X_sub, 
-      T = W_binary, 
-      class.methods = class.method,
-      perm.N = perm.N,
-      alpha = alpha,
-      R.seed = seed
-    )
-    fastcpt_all_args <- utils::modifyList(fastcpt_base_args, fastcpt.args)
-    balance_test <- do.call(fastcpt, fastcpt_all_args)
-    balance_tests[[arm_name]] <- balance_test
-    passed_vec[arm_name] <- balance_test$pval > alpha
-    
+
+    # 1. Run fastcpt for formal balance test (binary only; multi-arm uses joint test above)
+    if (!multiarm) {
+      fastcpt_base_args <- list(
+        Z = X_sub,
+        T = W_binary,
+        class.methods = class.method,
+        perm.N = perm.N,
+        alpha = alpha,
+        R.seed = seed
+      )
+      fastcpt_all_args <- utils::modifyList(fastcpt_base_args, fastcpt.args)
+      balance_test <- do.call(fastcpt, fastcpt_all_args)
+      balance_tests[[arm_name]] <- balance_test
+      passed_vec[arm_name] <- balance_test$pval > alpha
+    }
+
     # 2. Fit honest propensity models for visualization (boosted RF from grf)
     prop_real <- grf::boosted_regression_forest(
-      X = X_matrix_sub, 
-      Y = W_binary, 
-      honesty = TRUE, 
-      tune.parameters = "all", 
+      X = X_matrix_sub,
+      Y = W_binary,
+      honesty = TRUE,
+      tune.parameters = "all",
       seed = seed
     )
     pscores_real_list[[arm_name]] <- as.numeric(prop_real$predictions)
-    
+
     # Variable importance from the propensity model
     vip_list[[arm_name]] <- vip(prop_real$forests[[1]])
-    
+
     # Null (permuted) treatment propensities
     set.seed(seed + which(treatment_arms == arm))
     W_null <- sample(W_binary)
     prop_null <- grf::boosted_regression_forest(
-      X = X_matrix_sub, 
-      Y = W_null, 
-      honesty = TRUE, 
-      tune.parameters = "all", 
+      X = X_matrix_sub,
+      Y = W_null,
+      honesty = TRUE,
+      tune.parameters = "all",
       seed = seed
     )
     pscores_null_list[[arm_name]] <- as.numeric(prop_null$predictions)
-    
+
+    # Detect extreme propensity scores
+    ps_real <- pscores_real_list[[arm_name]]
+    n_extreme <- sum(ps_real < 0.05) + sum(ps_real > 0.95)
+    has_overlap_issue <- n_extreme > 0
+    overlap_flag_list[[arm_name]] <- has_overlap_issue
+    n_extreme_list[[arm_name]] <- n_extreme
+
     # 3. Optional treatment effect estimation (only if Y provided)
     if (!is.null(Y_sub)) {
       # Compute difference-in-means
@@ -214,7 +248,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       dim_est <- mean(Y1) - mean(Y0)
       dim_se <- sqrt(stats::var(Y1) / length(Y1) + stats::var(Y0) / length(Y0))
       dim_ci <- dim_est + c(-1, 1) * stats::qnorm(0.975) * dim_se
-      
+
       dim_results[[arm_name]] <- list(
         estimate = dim_est,
         std.err = dim_se,
@@ -284,9 +318,49 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         std.err  = ate["std.err"],
         ci       = ate["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate["std.err"]
       )
+
+      # Per-observation influence functions for covariance computation
+      scores_ipw  <- as.numeric(grf::get_scores(cf_ipw))
+      scores_oadj <- as.numeric(grf::get_scores(cf_const))
+      scores_aipw <- as.numeric(grf::get_scores(cf))
+
+      # DiM influence function
+      p_hat <- mean(W_binary)
+      scores_dim <- W_binary / p_hat * (Y_sub - mean(Y1)) -
+                    (1 - W_binary) / (1 - p_hat) * (Y_sub - mean(Y0))
+
+      # 4x4 covariance matrix of ATE estimators
+      score_mat <- cbind(dim = scores_dim, ipw = scores_ipw,
+                         oadj = scores_oadj, aipw = scores_aipw)
+      n_sub <- length(Y_sub)
+      ate_cov_list[[arm_name]] <- stats::cov(score_mat) / n_sub
+
+      # Overlap-weighted estimates when extreme propensity scores detected
+      if (has_overlap_issue) {
+        ate_ipw_ow  <- grf::average_treatment_effect(cf_ipw,   target.sample = "overlap")
+        ate_oadj_ow <- grf::average_treatment_effect(cf_const, target.sample = "overlap")
+        ate_aipw_ow <- grf::average_treatment_effect(cf,       target.sample = "overlap")
+        overlap_results[[arm_name]] <- list(
+          ipw = list(
+            estimate = ate_ipw_ow["estimate"],
+            std.err  = ate_ipw_ow["std.err"],
+            ci       = ate_ipw_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_ipw_ow["std.err"]
+          ),
+          aipw_const = list(
+            estimate = ate_oadj_ow["estimate"],
+            std.err  = ate_oadj_ow["std.err"],
+            ci       = ate_oadj_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_oadj_ow["std.err"]
+          ),
+          aipw = list(
+            estimate = ate_aipw_ow["estimate"],
+            std.err  = ate_aipw_ow["std.err"],
+            ci       = ate_aipw_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_aipw_ow["std.err"]
+          )
+        )
+      }
     }
   }
-  
+
   # Build result object
   # For binary treatment, unwrap single-element lists for backward compatibility
   if (!multiarm) {
@@ -299,6 +373,10 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       passed = unname(passed_vec[1]),
       alpha = alpha,
       cf = if (length(cf_list) > 0) cf_list[[1]] else NULL,
+      ate_cov = if (length(ate_cov_list) > 0) ate_cov_list[[1]] else NULL,
+      overlap_flag = overlap_flag_list[[1]],
+      overlap = if (length(overlap_results) > 0) overlap_results[[1]] else NULL,
+      n_extreme = n_extreme_list[[1]],
       pscores_real = pscores_real_list[[1]],
       pscores_null = pscores_null_list[[1]],
       imp.predictors = vip_list[[1]],
@@ -311,14 +389,18 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     )
   } else {
     result <- list(
-      balance_test = balance_tests,
+      balance_test = balance_test_joint,
       dim = if (length(dim_results) > 0) dim_results else NULL,
       ipw = if (length(ipw_results) > 0) ipw_results else NULL,
       aipw = if (length(aipw_results) > 0) aipw_results else NULL,
       aipw_const = if (length(aipw_const_results) > 0) aipw_const_results else NULL,
-      passed = passed_vec,
+      passed = passed_joint,
       alpha = alpha,
       cf = if (length(cf_list) > 0) cf_list else NULL,
+      ate_cov = if (length(ate_cov_list) > 0) ate_cov_list else NULL,
+      overlap_flag = overlap_flag_list,
+      overlap = if (length(overlap_results) > 0) overlap_results else NULL,
+      n_extreme = n_extreme_list,
       pscores_real = pscores_real_list,
       pscores_null = pscores_null_list,
       imp.predictors = vip_list,
@@ -329,7 +411,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       multiarm = TRUE
     )
   }
-  
+
   class(result) <- "balance"
   return(result)
 }
@@ -353,23 +435,30 @@ print.balance <- function(x, ...) {
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Propensity-Adjusted:", x$ipw$estimate, x$ipw$std.err))
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Outcome-Adjusted:", x$aipw_const$estimate, x$aipw_const$std.err))
       cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Doubly-Robust (AIPW):", x$aipw$estimate, x$aipw$std.err))
+      if (isTRUE(x$overlap_flag)) {
+        cat(sprintf("\n  OVERLAP WARNING: %d observations have extreme propensity scores.\n", x$n_extreme))
+      }
     } else {
       cat("  No outcome Y provided: treatment effect estimates skipped.\n")
     }
   } else {
     cat(sprintf("  Control: '%s'  |  %d treatment arms\n", x$control, length(x$arms)))
+    status <- ifelse(x$passed, "PASS", "FAIL")
+    cat(sprintf("  Balance (joint):  p = %.4f  [%s]\n", x$balance_test$pval, status))
     cat("\n")
     has_effects <- !is.null(x$dim)
-    for (arm in x$arms) {
-      status <- ifelse(x$passed[arm], "PASS", "FAIL")
-      cat(sprintf("  [%s vs %s]  p = %.4f  [%s]\n",
-                  arm, x$control, x$balance_test[[arm]]$pval, status))
-      if (has_effects) {
+    if (has_effects) {
+      for (arm in x$arms) {
+        cat(sprintf("  [%s vs %s]\n", arm, x$control))
         cat(sprintf("    DiM: %8.4f   IPW: %8.4f   AIPW: %8.4f\n",
                     x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw[[arm]]$estimate))
+        if (isTRUE(x$overlap_flag[[arm]])) {
+          cat(sprintf("    OVERLAP WARNING: %d extreme propensity scores\n", x$n_extreme[[arm]]))
+        }
       }
+    } else {
+      cat("  No outcome Y provided: treatment effect estimates skipped.\n")
     }
-    if (!has_effects) cat("\n  No outcome Y provided: treatment effect estimates skipped.\n")
   }
 
   cat("\nUse summary() for full details, plot() to visualize.\n\n")
@@ -440,26 +529,27 @@ summary.balance <- function(object, ...) {
   # Total: 3 + 28 + 2 + 10 + 2 + 9 + 2 + 7 + 2 + 8 = 73 chars (+ 2 sig marker)
   DIV_ROW <- "   %-28s  %10.4f  %9.4f  %7.3f  %8.4f%s\n"
 
-  print_divergence_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res, alpha) {
+  # Estimator index map for covariance matrix: dim=1, ipw=2, oadj=3, aipw=4
+  print_divergence_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res, alpha, Sigma) {
     pairs <- list(
       list(key = "dim_ipw", label = "DiM vs Propensity-Adjusted",
-           e1 = dim_res$estimate,        se1 = dim_res$std.err,
-           e2 = ipw_res$estimate,        se2 = ipw_res$std.err),
+           e1 = dim_res$estimate,        e2 = ipw_res$estimate,
+           idx1 = 1L, idx2 = 2L),
       list(key = "dim_oa",  label = "DiM vs Outcome-Adjusted",
-           e1 = dim_res$estimate,        se1 = dim_res$std.err,
-           e2 = aipw_const_res$estimate, se2 = aipw_const_res$std.err),
+           e1 = dim_res$estimate,        e2 = aipw_const_res$estimate,
+           idx1 = 1L, idx2 = 3L),
       list(key = "dim_dr",  label = "DiM vs Doubly-Robust",
-           e1 = dim_res$estimate,        se1 = dim_res$std.err,
-           e2 = aipw_res$estimate,       se2 = aipw_res$std.err),
+           e1 = dim_res$estimate,        e2 = aipw_res$estimate,
+           idx1 = 1L, idx2 = 4L),
       list(key = "ipw_dr",  label = "Prop.-Adj. vs Doubly-Robust",
-           e1 = ipw_res$estimate,        se1 = ipw_res$std.err,
-           e2 = aipw_res$estimate,       se2 = aipw_res$std.err)
+           e1 = ipw_res$estimate,        e2 = aipw_res$estimate,
+           idx1 = 2L, idx2 = 4L)
     )
 
-    # Compute stats for all pairs upfront
+    # Compute stats for all pairs using the covariance matrix
     res <- lapply(pairs, function(p) {
       d  <- p$e1 - p$e2
-      se <- sqrt(p$se1^2 + p$se2^2)
+      se <- sqrt(Sigma[p$idx1, p$idx1] + Sigma[p$idx2, p$idx2] - 2 * Sigma[p$idx1, p$idx2])
       z  <- d / se
       pv <- 2 * stats::pnorm(-abs(z))
       list(key = p$key, label = p$label,
@@ -584,47 +674,54 @@ summary.balance <- function(object, ...) {
     next_sec <- 4L
 
   } else {
-    # ── Multi-arm: section 2 = summary table, 3+ = per-arm details ───────
-    cat("2. CLASSIFICATION PERMUTATION TEST SUMMARY\n")
+    # ── Multi-arm: section 2 = joint K-class test, section 3 = per-arm PS diagnostics ──
+    bt <- object$balance_test
+    cat("2. CLASSIFICATION PERMUTATION TEST (JOINT)\n")
     cat(LINE)
-    cat(sprintf("   %-34s  %9s  %6s\n", "Comparison", "P-value", "Result"))
-    cat(sprintf("   %s\n", strrep("-", 53)))
-    for (arm in object$arms) {
-      status <- ifelse(object$passed[arm], "PASS", "FAIL")
-      sig    <- if (!object$passed[arm]) " *" else "  "
-      cat(sprintf("   %-34s  %9.4f  %6s%s\n",
-                  paste(arm, "vs", object$control),
-                  object$balance_test[[arm]]$pval, status, sig))
-    }
-    if (!all(object$passed)) cat(sprintf("   * p < %.2f\n", object$alpha))
+    status <- ifelse(object$passed, "PASS", "FAIL")
+    cat(sprintf("   Type:                Joint %d-class test\n", length(object$arms) + 1L))
+    cat(sprintf("   Classifier:          %s\n", paste(bt$class.methods, collapse = ", ")))
+    cat(sprintf("   Permutations:        %d\n", bt$perm.N))
+    cat(sprintf("   Test statistic:      %.4f\n", bt$teststat))
+    cat(sprintf("   Null mean (SD):      %.4f (%.4f)\n",
+                mean(bt$nulldist), stats::sd(bt$nulldist)))
+    cat(sprintf("   P-value:             %.4f\n", bt$pval))
+    cat(sprintf("   Alpha:               %.2f\n", object$alpha))
+    cat(sprintf("   Result:              %s\n", status))
     cat("\n")
 
     sec <- 3L
     for (arm in object$arms) {
-      cat(sprintf("%d. CLASSIFICATION PERMUTATION TEST: %s vs %s\n", sec, arm, object$control))
+      cat(sprintf("%d. PROPENSITY DIAGNOSTICS: %s vs %s\n", sec, arm, object$control))
       cat(LINE)
-      print_balance_block(object$balance_test[[arm]],
-                          object$pscores_real[[arm]],
-                          object$pscores_null[[arm]],
-                          object$passed[arm], object$alpha)
+      ps_real <- object$pscores_real[[arm]]
+      ps_null <- object$pscores_null[[arm]]
+      cat("   Propensity scores (boosted regression forest):\n")
+      cat(sprintf("   %-16s  %10s  %10s\n", "", "Real", "Null"))
+      cat(sprintf("   %s\n", strrep("-", 40)))
+      cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Mean:", mean(ps_real), mean(ps_null)))
+      cat(sprintf("   %-16s  %10.4f  %10.4f\n", "SD:", stats::sd(ps_real), stats::sd(ps_null)))
+      cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Min:", min(ps_real), min(ps_null)))
+      cat(sprintf("   %-16s  %10.4f  %10.4f\n", "Max:", max(ps_real), max(ps_null)))
+      cat(sprintf("   %s\n", strrep("-", 40)))
+      cat(sprintf("   Diff. in means:      %.4f\n", mean(ps_real) - mean(ps_null)))
+      cat(sprintf("   Ratio of SDs:        %.4f\n", stats::sd(ps_real) / stats::sd(ps_null)))
+      cat("\n")
       sec <- sec + 1L
     }
 
     cat(sprintf("%d. INTERPRETATION\n", sec))
     cat(LINE)
-    n_passed <- sum(object$passed)
-    n_total  <- length(object$passed)
-    if (all(object$passed)) {
-      cat(sprintf("   All %d pairwise balance tests PASSED.\n", n_total))
-      cat("   The classifier cannot distinguish any treatment arm from control\n")
-      cat("   better than chance.\n")
-    } else if (!any(object$passed)) {
-      cat(sprintf("   All %d pairwise balance tests FAILED.\n", n_total))
-      cat("   The classifier can distinguish all treatment arms from control.\n")
+    if (object$passed) {
+      cat("   The joint classification permutation test does not reject the null\n")
+      cat("   hypothesis that all treatment groups are drawn from the same\n")
+      cat("   covariate distribution. The classifier cannot distinguish between\n")
+      cat("   groups better than chance.\n")
     } else {
-      cat(sprintf("   %d of %d pairwise balance tests passed.\n", n_passed, n_total))
-      cat(sprintf("   Failed: %s\n",
-                  paste(names(object$passed)[!object$passed], collapse = ", ")))
+      cat("   The joint classification permutation test rejects the null\n")
+      cat("   hypothesis, indicating that at least one treatment group differs\n")
+      cat("   in its covariate distribution. The classifier can distinguish\n")
+      cat("   between groups better than random chance.\n")
     }
     cat("\n")
     next_sec <- sec + 1L
@@ -652,6 +749,22 @@ summary.balance <- function(object, ...) {
                       "Comparison", "Difference", "SE(diff)", "z-stat", "p-value")
   DIV_SEP  <- sprintf("   %s\n", strrep("-", 70))
 
+  # ── Helper: overlap warning block ────────────────────────────────────────
+  OW_ROW <- "   %-26s  %9.4f  %8.4f  [%8.4f, %8.4f]\n"
+  print_overlap_block <- function(n_ext, ov) {
+    cat(sprintf("\n   OVERLAP WARNING: %d observations have extreme propensity scores\n", n_ext))
+    cat("   (< 0.05 or > 0.95). Overlap-weighted estimates down-weight these:\n\n")
+    cat(EST_HEAD)
+    cat(EST_SEP)
+    cat(sprintf(OW_ROW, "Propensity-Adjusted (OW)",
+                ov$ipw$estimate, ov$ipw$std.err, ov$ipw$ci[1], ov$ipw$ci[2]))
+    cat(sprintf(OW_ROW, "Outcome-Adjusted (OW)",
+                ov$aipw_const$estimate, ov$aipw_const$std.err, ov$aipw_const$ci[1], ov$aipw_const$ci[2]))
+    cat(sprintf(OW_ROW, "Doubly-Robust (OW)",
+                ov$aipw$estimate, ov$aipw$std.err, ov$aipw$ci[1], ov$aipw$ci[2]))
+    cat("\n")
+  }
+
   if (!object$multiarm) {
     # Section N: Estimates
     cat(sprintf("%d. ESTIMATES\n", next_sec))
@@ -659,6 +772,9 @@ summary.balance <- function(object, ...) {
     cat(EST_HEAD)
     cat(EST_SEP)
     print_estimates_rows(object$dim, object$ipw, object$aipw, object$aipw_const)
+    if (isTRUE(object$overlap_flag) && !is.null(object$overlap)) {
+      print_overlap_block(object$n_extreme, object$overlap)
+    }
     cat("\n")
 
     # Section N+1: Divergence tests
@@ -666,7 +782,7 @@ summary.balance <- function(object, ...) {
     cat(LINE)
     cat(DIV_HEAD)
     cat(DIV_SEP)
-    print_divergence_rows(object$dim, object$ipw, object$aipw, object$aipw_const, object$alpha)
+    print_divergence_rows(object$dim, object$ipw, object$aipw, object$aipw_const, object$alpha, object$ate_cov)
 
     next_sec <- next_sec + 2L
 
@@ -680,6 +796,9 @@ summary.balance <- function(object, ...) {
       cat(sprintf("   --- %s vs %s ---\n", arm, object$control))
       print_estimates_rows(object$dim[[arm]], object$ipw[[arm]],
                            object$aipw[[arm]], object$aipw_const[[arm]])
+      if (isTRUE(object$overlap_flag[[arm]]) && !is.null(object$overlap[[arm]])) {
+        print_overlap_block(object$n_extreme[[arm]], object$overlap[[arm]])
+      }
     }
     cat("\n")
 
@@ -691,7 +810,8 @@ summary.balance <- function(object, ...) {
       cat(DIV_HEAD)
       cat(DIV_SEP)
       print_divergence_rows(object$dim[[arm]], object$ipw[[arm]],
-                            object$aipw[[arm]], object$aipw_const[[arm]], object$alpha)
+                            object$aipw[[arm]], object$aipw_const[[arm]], object$alpha,
+                            object$ate_cov[[arm]])
     }
 
     next_sec <- next_sec + 2L
@@ -726,6 +846,23 @@ summary.balance <- function(object, ...) {
   cat("     either nuisance model is correctly specified.\n")
   cat("\n")
 
+  # Check if any overlap warnings were triggered
+  has_overlap <- if (!object$multiarm) {
+    isTRUE(object$overlap_flag) && !is.null(object$overlap)
+  } else {
+    !is.null(object$overlap) &&
+      any(vapply(object$arms, function(a) isTRUE(object$overlap_flag[[a]]), logical(1L)))
+  }
+  if (has_overlap) {
+    cat("   Overlap-Weighted (OW) Estimates\n")
+    cat("     When propensity scores approach 0 or 1, IPW-type estimators become\n")
+    cat("     unstable. Overlap-weighted estimates (Li, Morgan & Zaslavsky, 2018)\n")
+    cat("     target the ATE for the overlap population by down-weighting units\n")
+    cat("     with extreme propensity scores. Computed via\n")
+    cat("     grf::average_treatment_effect(target.sample = \"overlap\").\n")
+    cat("\n")
+  }
+
   invisible(object)
 }
 
@@ -733,27 +870,27 @@ summary.balance <- function(object, ...) {
 #'
 #' @param x A balance result object.
 #' @param which Character vector specifying which plots to create. Options are "pscores", "null_dist", "effects", or "all".
-#' @param combined Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE. 
+#' @param combined Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE.
 #' @param breaks Number of breaks for histograms. Default is 25.
 #' @param ... Additional arguments (currently unused).
 #' @rdname balance
 #' @export
 plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
-  
+
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for plotting.", call. = FALSE)
   }
-  
+
   if (!requireNamespace("ggdist", quietly = TRUE)) {
     stop("Package 'ggdist' is required for plotting.", call. = FALSE)
   }
-  
+
   # Color palette (consistent across plots)
   col_null <- "#4575B4"      # Blue for null/reference
   col_real <- "#D73027"      # Red-orange for real/observed
   col_pass <- "#1A9850"      # Green for pass
   col_fail <- "#D73027"      # Red for fail
-  
+
   # Shared theme (matching pdp style)
   g_theme <- function() {
     ggplot2::theme(
@@ -774,9 +911,9 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       complete = TRUE
     )
   }
-  
+
   has_effects <- !is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$aipw_const)
-  
+
   if (length(which) == 1 && which == "all") {
     which <- if (has_effects) c("pscores", "null_dist", "effects") else c("pscores", "null_dist")
   }
@@ -784,14 +921,14 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     warning("Outcome Y not provided: skipping treatment effect plot.", call. = FALSE)
     which <- setdiff(which, "effects")
   }
-  
+
   plots <- list()
-  
+
   # ============================================================================
   # BINARY TREATMENT PLOTS
   # ============================================================================
   if (!x$multiarm) {
-    
+
     # Panel A: Propensity score distributions
     if ("pscores" %in% which && !is.null(x$pscores_real) && !is.null(x$pscores_null)) {
       plot_df <- data.frame(
@@ -799,7 +936,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
                      levels = c("Null", "Real")),
         val = c(x$pscores_real, x$pscores_null)
       )
-      
+
       plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = var)) +
         ggdist::stat_histinterval(
           slab_color = "gray70",
@@ -828,7 +965,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           ggplot2::scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))
         }
     }
-    
+
     # Panel B: Classification permutation test null distribution
     if ("null_dist" %in% which) {
       test_pass <- x$balance_test$pval > x$alpha
@@ -836,10 +973,10 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       status_text <- ifelse(test_pass, "Pass", "Fail")
       testval <- x$balance_test$teststat
       null_df <- data.frame(val = x$balance_test$nulldist)
-      
+
       x_min <- floor(min(x$balance_test$nulldist) * 10) / 10
       x_max <- ceiling(max(c(x$balance_test$nulldist, testval)) * 10) / 10
-      
+
       plots$null_dist <- ggplot2::ggplot(null_df, ggplot2::aes(x = val)) +
         ggdist::stat_histinterval(
           fill = "grey70",
@@ -852,7 +989,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           interval_alpha = 0
         ) +
         ggplot2::geom_vline(xintercept = testval, color = color_select, linewidth = 1.5) +
-        ggplot2::annotate("text", x = testval, y = 0.95, 
+        ggplot2::annotate("text", x = testval, y = 0.95,
                           label = sprintf("p = %.3f (%s)", x$balance_test$pval, status_text),
                           hjust = -0.1, size = 3.5, fontface = "bold", color = color_select) +
         g_theme() +
@@ -860,70 +997,113 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           title = "B. Classification Permutation Test",
           x = "Test Statistic (Classification Accuracy)",
           y = "Density",
-          caption = sprintf("Note: Classifier = %s, alpha = %.2f.", 
+          caption = sprintf("Note: Classifier = %s, alpha = %.2f.",
                             paste(x$balance_test$class.methods, collapse = ", "), x$alpha)
         ) +
         ggplot2::scale_x_continuous(limits = c(x_min, x_max), expand = c(0, 0)) +
         ggplot2::scale_y_continuous(expand = c(0, 0))
     }
-    
+
     # Panel C: Treatment effect estimates with ggdist
     if ("effects" %in% which && has_effects) {
       # Colors for estimators
-      col_dim        <- "#004225"   # British racing green
-      col_ipw        <- "#8B1A8B"   # Dark purple
-      col_aipw_const <- "#5ab0c0"   # Teal
-      col_aipw       <- "#FF8C00"   # Dark orange
+      col_dim        <- "#506D27"
+      col_ipw        <- "#F9E79F"
+      col_aipw_const <- "#B2C0DA"
+      col_aipw       <- "#9C4643"
 
-      # Build data for ggdist (four estimators)
+      has_ow <- isTRUE(x$overlap_flag) && !is.null(x$overlap)
+
+      # Labels matching summary output
+      est_labels <- c("DiM\n(unadjusted)", "Propensity-\nAdjusted", "Outcome-\nAdjusted", "Doubly-Robust\n(AIPW)")
+
+      # Build data frame with weight type for shape mapping
       effect_df <- data.frame(
-        estimator = factor(c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust"),
-                           levels = c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust")),
-        estimate = c(x$dim$estimate, x$ipw$estimate, x$aipw_const$estimate, x$aipw$estimate),
-        se = c(x$dim$std.err, x$ipw$std.err, x$aipw_const$std.err, x$aipw$std.err)
+        estimator = factor(est_labels, levels = est_labels),
+        estimate  = c(x$dim$estimate, x$ipw$estimate, x$aipw_const$estimate, x$aipw$estimate),
+        se        = c(x$dim$std.err, x$ipw$std.err, x$aipw_const$std.err, x$aipw$std.err),
+        weight    = "ATE"
       )
-      
+
+      if (has_ow) {
+        ow_df <- data.frame(
+          estimator = factor(est_labels[2:4], levels = est_labels),
+          estimate  = c(x$overlap$ipw$estimate, x$overlap$aipw_const$estimate, x$overlap$aipw$estimate),
+          se        = c(x$overlap$ipw$std.err, x$overlap$aipw_const$std.err, x$overlap$aipw$std.err),
+          weight    = "ATO"
+        )
+        effect_df <- rbind(effect_df, ow_df)
+      }
+      effect_df$weight <- factor(effect_df$weight, levels = c("ATE", "ATO"))
+
       # Create distributional data for ggdist
       effect_df$.dist <- lapply(seq_len(nrow(effect_df)), function(i) {
         distributional::dist_normal(effect_df$estimate[i], effect_df$se[i])
       })
       effect_df$.dist <- do.call(c, effect_df$.dist)
-      
-      plots$effects <- ggplot2::ggplot(effect_df, ggplot2::aes(x = estimator, ydist = .dist, color = estimator)) +
+
+      ow_caption <- "Note: Point estimates with 80%, 95%, 99% CIs. Intervals based on normal approximation."
+      if (has_ow) ow_caption <- paste0(ow_caption, "\nOverlap-weighted estimates down-weight extreme propensity scores.")
+
+      p <- ggplot2::ggplot(effect_df, ggplot2::aes(
+        x = estimator, ydist = .dist, color = estimator, fill = estimator,
+        shape = weight, group = interaction(estimator, weight)
+      )) +
         ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
         ggdist::stat_pointinterval(
           .width = c(0.80, 0.95, 0.99),
           point_size = 3,
-          interval_size_range = c(0.8, 2.5)
+          point_colour = "black",
+          stroke = 0.6,
+          interval_size_range = c(0.8, 2.5),
+          interval_alpha = 0.8,
+          position = if (has_ow) ggplot2::position_dodge(width = 0.5) else "identity"
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw)) +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::guides(color = "none", fill = "none") +
         g_theme() +
         ggplot2::labs(
           title = "C. Treatment Effect Estimates",
           x = NULL,
           y = "Effect Estimate",
-          caption = "Note: Point estimates with 80%, 95%, 99% CIs. Intervals based on normal approximation."
+          caption = ow_caption
         ) +
         ggplot2::theme(
-          legend.position = "none",
           axis.text.x = ggplot2::element_text(size = 9, color = "black"),
           panel.grid.major.y = ggplot2::element_blank(),
           panel.grid.major.x = ggplot2::element_blank()
         )
+
+      if (has_ow) {
+        p <- p +
+          ggplot2::scale_shape_manual(values = c("ATE" = 21, "ATO" = 24), name = "Weighting") +
+          ggplot2::theme(
+            legend.position = c(0.12, 0.88),
+            legend.background = ggplot2::element_blank(),
+            legend.key = ggplot2::element_blank()
+          )
+      } else {
+        p <- p +
+          ggplot2::scale_shape_manual(values = c("ATE" = 21), guide = "none") +
+          ggplot2::theme(legend.position = "none")
+      }
+
+      plots$effects <- p
     }
-    
+
   } else {
     # ============================================================================
     # MULTI-ARM TREATMENT PLOTS (with facets)
     # ============================================================================
-    
+
     # Panel A: Propensity score distributions (faceted by arm)
     if ("pscores" %in% which && !is.null(x$pscores_real)) {
       # Build combined data frame for all arms
       plot_df_list <- lapply(x$arms, function(arm) {
         data.frame(
           arm = sprintf("%s vs %s", arm, x$control),
-          var = factor(c(rep("Real", length(x$pscores_real[[arm]])), 
+          var = factor(c(rep("Real", length(x$pscores_real[[arm]])),
                          rep("Null", length(x$pscores_null[[arm]]))),
                        levels = c("Null", "Real")),
           val = c(x$pscores_real[[arm]], x$pscores_null[[arm]])
@@ -931,7 +1111,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       })
       plot_df <- do.call(rbind, plot_df_list)
       plot_df$arm <- factor(plot_df$arm, levels = unique(plot_df$arm))
-      
+
       # Compute means per arm for vertical lines
       mean_df <- do.call(rbind, lapply(x$arms, function(arm) {
         data.frame(
@@ -941,7 +1121,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
         )
       }))
       mean_df$arm <- factor(mean_df$arm, levels = levels(plot_df$arm))
-      
+
       plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = var)) +
         ggdist::stat_histinterval(
           slab_color = "gray70",
@@ -952,9 +1132,9 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           breaks = breaks,
           interval_alpha = 0
         ) +
-        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_real), 
+        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_real),
                             color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
-        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_null), 
+        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_null),
                             color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
         ggplot2::facet_wrap(~ arm, scales = "free_x") +
         g_theme() +
@@ -969,40 +1149,18 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
         ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
         ggplot2::theme(legend.position = "bottom")
     }
-    
-    # Panel B: Classification permutation test null distribution (faceted by arm)
+
+    # Panel B: Classification permutation test null distribution (single joint test)
     if ("null_dist" %in% which) {
-      # Build combined data frame for all arms
-      null_df_list <- lapply(x$arms, function(arm) {
-        data.frame(
-          arm = sprintf("%s vs %s", arm, x$control),
-          val = x$balance_test[[arm]]$nulldist
-        )
-      })
-      null_df <- do.call(rbind, null_df_list)
-      null_df$arm <- factor(null_df$arm, levels = unique(null_df$arm))
-      
-      # Test statistics and p-values per arm
-      test_df <- do.call(rbind, lapply(x$arms, function(arm) {
-        bt <- x$balance_test[[arm]]
-        test_pass <- bt$pval > x$alpha
-        data.frame(
-          arm = sprintf("%s vs %s", arm, x$control),
-          testval = bt$teststat,
-          pval = bt$pval,
-          passed = test_pass,
-          status_text = ifelse(test_pass, "Pass", "Fail"),
-          color = ifelse(test_pass, col_pass, col_fail)
-        )
-      }))
-      test_df$arm <- factor(test_df$arm, levels = levels(null_df$arm))
-      
-      # Calculate axis limits across all arms
-      all_nulldist <- unlist(lapply(x$arms, function(arm) x$balance_test[[arm]]$nulldist))
-      all_testvals <- sapply(x$arms, function(arm) x$balance_test[[arm]]$teststat)
-      x_min <- floor(min(all_nulldist) * 10) / 10
-      x_max <- ceiling(max(c(all_nulldist, all_testvals)) * 10) / 10
-      
+      test_pass <- x$balance_test$pval > x$alpha
+      color_select <- ifelse(test_pass, col_pass, col_fail)
+      status_text <- ifelse(test_pass, "Pass", "Fail")
+      testval <- x$balance_test$teststat
+      null_df <- data.frame(val = x$balance_test$nulldist)
+
+      x_min <- floor(min(x$balance_test$nulldist) * 10) / 10
+      x_max <- ceiling(max(c(x$balance_test$nulldist, testval)) * 10) / 10
+
       plots$null_dist <- ggplot2::ggplot(null_df, ggplot2::aes(x = val)) +
         ggdist::stat_histinterval(
           fill = "grey70",
@@ -1014,79 +1172,120 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           breaks = breaks,
           interval_alpha = 0
         ) +
-        ggplot2::geom_vline(data = test_df, ggplot2::aes(xintercept = testval, color = color), 
-                            linewidth = 1.5, show.legend = FALSE) +
-        ggplot2::geom_text(data = test_df, 
-                           ggplot2::aes(x = testval, y = 0.95, 
-                                        label = sprintf("p = %.3f (%s)", pval, status_text),
-                                        color = color),
-                           hjust = -0.1, size = 3, fontface = "bold", show.legend = FALSE) +
-        ggplot2::scale_color_identity() +
-        ggplot2::facet_wrap(~ arm) +
+        ggplot2::geom_vline(xintercept = testval, color = color_select, linewidth = 1.5) +
+        ggplot2::annotate("text", x = testval, y = 0.95,
+                          label = sprintf("p = %.3f (%s)", x$balance_test$pval, status_text),
+                          hjust = -0.1, size = 3.5, fontface = "bold", color = color_select) +
         g_theme() +
         ggplot2::labs(
-          title = "B. Classification Permutation Test by Treatment Arm",
+          title = "B. Joint Classification Permutation Test",
           x = "Test Statistic (Classification Accuracy)",
           y = "Density",
-          caption = sprintf("Note: Classifier = %s, alpha = %.2f.", 
-                            paste(x$balance_test[[1]]$class.methods, collapse = ", "), x$alpha)
+          caption = sprintf("Note: Joint %d-class test. Classifier = %s, alpha = %.2f.",
+                            length(x$arms) + 1L,
+                            paste(x$balance_test$class.methods, collapse = ", "), x$alpha)
         ) +
         ggplot2::scale_x_continuous(limits = c(x_min, x_max), expand = c(0, 0)) +
         ggplot2::scale_y_continuous(expand = c(0, 0))
     }
-    
+
     # Panel C: Treatment effect estimates (faceted by arm)
     if ("effects" %in% which && has_effects) {
       # Colors for estimators
-      col_dim        <- "#004225"   # British racing green
-      col_ipw        <- "#8B1A8B"   # Dark purple
-      col_aipw_const <- "#5ab0c0"   # Teal
-      col_aipw       <- "#FF8C00"   # Dark orange
+      col_dim        <- "#506D27"
+      col_ipw        <- "#F9E79F"
+      col_aipw_const <- "#B2C0DA"
+      col_aipw       <- "#9C4643"
 
-      # Build combined data frame for all arms
+      any_overlap <- any(vapply(x$arms, function(arm) isTRUE(x$overlap_flag[[arm]]), logical(1L)))
+
+      # Labels matching summary output
+      est_labels <- c("DiM\n(unadjusted)", "Propensity-\nAdjusted", "Outcome-\nAdjusted", "Doubly-Robust\n(AIPW)")
+
+      # Build combined data frame for all arms with weight type
       effect_df_list <- lapply(x$arms, function(arm) {
-        data.frame(
-          arm = sprintf("%s vs %s", arm, x$control),
-          estimator = factor(c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust"),
-                             levels = c("Difference\nin Means", "IPW", "Outcome\nAdjusted", "Doubly\nRobust")),
-          estimate = c(x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw_const[[arm]]$estimate, x$aipw[[arm]]$estimate),
-          se = c(x$dim[[arm]]$std.err, x$ipw[[arm]]$std.err, x$aipw_const[[arm]]$std.err, x$aipw[[arm]]$std.err)
+        base_df <- data.frame(
+          arm       = sprintf("%s vs %s", arm, x$control),
+          estimator = factor(est_labels, levels = est_labels),
+          estimate  = c(x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw_const[[arm]]$estimate, x$aipw[[arm]]$estimate),
+          se        = c(x$dim[[arm]]$std.err, x$ipw[[arm]]$std.err, x$aipw_const[[arm]]$std.err, x$aipw[[arm]]$std.err),
+          weight    = "ATE"
         )
+        if (isTRUE(x$overlap_flag[[arm]]) && !is.null(x$overlap) && !is.null(x$overlap[[arm]])) {
+          ow <- x$overlap[[arm]]
+          ow_df <- data.frame(
+            arm       = sprintf("%s vs %s", arm, x$control),
+            estimator = factor(est_labels[2:4], levels = est_labels),
+            estimate  = c(ow$ipw$estimate, ow$aipw_const$estimate, ow$aipw$estimate),
+            se        = c(ow$ipw$std.err, ow$aipw_const$std.err, ow$aipw$std.err),
+            weight    = "ATO"
+          )
+          base_df <- rbind(base_df, ow_df)
+        }
+        base_df
       })
       effect_df <- do.call(rbind, effect_df_list)
       effect_df$arm <- factor(effect_df$arm, levels = unique(effect_df$arm))
-      
+      effect_df$weight <- factor(effect_df$weight, levels = c("ATE", "ATO"))
+
       # Create distributional data for ggdist
       effect_df$.dist <- lapply(seq_len(nrow(effect_df)), function(i) {
         distributional::dist_normal(effect_df$estimate[i], effect_df$se[i])
       })
       effect_df$.dist <- do.call(c, effect_df$.dist)
-      
-      plots$effects <- ggplot2::ggplot(effect_df, ggplot2::aes(x = estimator, ydist = .dist, color = estimator)) +
+
+      ow_caption <- "Note: Point estimates with 80%, 95%, 99% CIs. Intervals based on normal approximation."
+      if (any_overlap) ow_caption <- paste0(ow_caption, "\nOverlap-weighted estimates down-weight extreme propensity scores.")
+
+      p <- ggplot2::ggplot(effect_df, ggplot2::aes(
+        x = estimator, ydist = .dist, color = estimator, fill = estimator,
+        shape = weight, group = interaction(estimator, weight)
+      )) +
         ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
         ggdist::stat_pointinterval(
           .width = c(0.80, 0.95, 0.99),
           point_size = 3,
-          interval_size_range = c(0.8, 2.5)
+          point_colour = "black",
+          stroke = 0.6,
+          interval_size_range = c(0.8, 2.5),
+          interval_alpha = 0.8,
+          position = if (any_overlap) ggplot2::position_dodge(width = 0.5) else "identity"
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw)) +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::guides(color = "none", fill = "none") +
         ggplot2::facet_wrap(~ arm) +
         g_theme() +
         ggplot2::labs(
           title = "C. Treatment Effect Estimates by Arm",
           x = NULL,
           y = "Effect Estimate",
-          caption = "Note: Point estimates with 80%, 95%, 99% CIs. Intervals based on normal approximation."
+          caption = ow_caption
         ) +
         ggplot2::theme(
-          legend.position = "none",
           axis.text.x = ggplot2::element_text(size = 8, color = "black", angle = 45, hjust = 1),
           panel.grid.major.y = ggplot2::element_blank(),
           panel.grid.major.x = ggplot2::element_blank()
         )
+
+      if (any_overlap) {
+        p <- p +
+          ggplot2::scale_shape_manual(values = c("ATE" = 21, "ATO" = 24), name = "Weighting") +
+          ggplot2::theme(
+            legend.position = "bottom",
+            legend.background = ggplot2::element_blank(),
+            legend.key = ggplot2::element_blank()
+          )
+      } else {
+        p <- p +
+          ggplot2::scale_shape_manual(values = c("ATE" = 21), guide = "none") +
+          ggplot2::theme(legend.position = "none")
+      }
+
+      plots$effects <- p
     }
   }
-  
+
   # Combined multi-panel display
   if (combined && length(plots) > 1) {
     if (!requireNamespace("patchwork", quietly = TRUE)) {
@@ -1099,11 +1298,11 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       return(patchwork::wrap_plots(plotlist = unname(plots)))
     }
   }
-  
+
   if (length(plots) == 1) {
     return(plots[[1]])
   }
-  
+
   return(plots)
 }
 
