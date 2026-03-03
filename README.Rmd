@@ -33,32 +33,30 @@ Here is a basic example demonstrating the suite of machine learning balance test
 ```{r example}
 library(MLbalance)
 set.seed(1995)
-#
-# Simple simulation 
-n <- 500
-p <- 20
-X <- matrix(rnorm(n*p,0,1),n,p)
-W <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1, .021 + abs(.4*X[,4] - .5*X[,8]), 1))
-Y <- 2*W*X[,4] + 3*X[,2] -2*X[,8] + rnorm(n)
-#
 
-b.check <- balance(W = W, #real treatment assignment vector 
-                   Y = Y, #outcome variable 
-                   X = X, #matrix of pretreatment covariates (or any covariates that SHOULD NOT be related to the assignment process/mechanism)
-                   class.method = "forest" #which classifier? 
-             )
+# binary toy example 
+n  <- 1000
+p  <- 10
+X  <- matrix(rnorm(n*p,0,1),n,p)
+W  <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1, .021 + abs(.4*X[,4] - .5*X[,8]), 1)) #imbalance over X4 and X8
+Y  <- W + 0.8 * X[,1] - 0.6 * X[,2] + 1.2 * X[,3]^2 + 1.5 * X[,4] * X[,8] + 0.5 * X[,6] * X[,7] - 0.4 * abs(X[,9]) + 0.3 * X[,10] * X[,1] + rnorm(n, 0, .5) #true treatment effect = 1, annoying DGP                       
+
+df <- data.frame(Y = Y,W = W,X = X)
+
+# execute the balance tests and estimate treatment effects
+b  <- balance(Y,W,X); b
 ```
 
 One can quickly evaluate the output of the tests using the built in plot and summary functions. 
 
 To plot, simply execute: 
-```{r,fig.height=5, fig.width=15}
-b.check |> plot()
+```{r, plot, fig.height=5, fig.width=15}
+b |> plot()
 ```
 
 To summarize, simply execute: 
-```{r}
-b.check |> summary()
+```{r, summary}
+b |> summary()
 ```
 
 
