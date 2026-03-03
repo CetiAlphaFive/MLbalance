@@ -11,6 +11,9 @@ name: test-coverage
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
@@ -38,6 +41,7 @@ jobs:
 
       - uses: codecov/codecov-action@v5
         with:
+          use_oidc: true
           fail_ci_if_error: ${{ github.event_name != 'pull_request' && true || false }}
-          file: ./cobertura.xml
-          plugin: noop
+          files: ./cobertura.xml
+          plugins: noop
