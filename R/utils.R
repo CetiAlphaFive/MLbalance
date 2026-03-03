@@ -5,6 +5,23 @@ utils::globalVariables(character(0))
 
 #' @keywords internal
 #' @noRd
+.save_rng_state <- function() {
+  if (exists(".Random.seed", envir = globalenv()))
+    get(".Random.seed", envir = globalenv())
+  else NULL
+}
+
+#' @keywords internal
+#' @noRd
+.restore_rng_state <- function(old_seed) {
+  if (is.null(old_seed))
+    rm(".Random.seed", envir = globalenv(), inherits = FALSE)
+  else
+    assign(".Random.seed", old_seed, envir = globalenv())
+}
+
+#' @keywords internal
+#' @noRd
 .g_theme <- function(subtitle_color = NULL) {
   base <- ggplot2::theme(
     plot.title        = ggplot2::element_text(size = 14, face = "bold", hjust = 0.5),

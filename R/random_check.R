@@ -3,27 +3,6 @@
 # Suppress R CMD check notes for non-standard evaluation in ggplot
 utils::globalVariables(c("val", "var"))
 #
-# Check dependencies
-if (!requireNamespace("grf", quietly = TRUE)) {
-  stop(
-    "Package \"grf\" must be installed to use MLbalance.",
-    call. = FALSE
-  )
-}
-#
-if (!requireNamespace("ggplot2", quietly = TRUE)) {
-  stop(
-    "Package \"ggplot2\" must be installed to use MLbalance.",
-    call. = FALSE
-  )
-}
-#
-if (!requireNamespace("ggdist", quietly = TRUE)) {
-  stop(
-    "Package \"ggdist\" must be installed to use MLbalance.",
-    call. = FALSE
-  )
-}
 #
 # This measure of variable importance is explained in the appendix, comes from grf. Function to arrange scores
 #
@@ -39,7 +18,7 @@ if (!requireNamespace("ggdist", quietly = TRUE)) {
 #'   `vip` (variable importance scores), sorted in decreasing order of importance.
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' x <- data.frame(X1 = rnorm(1000))
 #' y <- rnorm(1000)
 #' model <- grf::regression_forest(X = x, Y = y)
@@ -48,7 +27,7 @@ if (!requireNamespace("ggdist", quietly = TRUE)) {
 #' @export
 vip <- function(model){
   vip_scores <- data.frame(varname = colnames(model$X.orig),vip = grf::variable_importance(model))
-  vip_scores[order(vip_scores$vip, decreasing = T),]
+  vip_scores[order(vip_scores$vip, decreasing = TRUE),]
 }
 #
 #' Balance Permutation Test
@@ -77,7 +56,7 @@ vip <- function(model){
 #' \item{plot}{ggplot object showing overlapping propensity score distributions.}
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' n <- 1000
 #' p <- 20
 #' X <- matrix(rnorm(n*p,0,1),n,p)
@@ -91,17 +70,21 @@ vip <- function(model){
 #' @export
 random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995, breaks = 25, facet = FALSE){
 
+  # Save and restore RNG state
+  old_seed <- .save_rng_state()
+  on.exit(.restore_rng_state(old_seed), add = TRUE)
+
   #Set the seed, default is 1995
   set.seed(R.seed)
 
   #Check inputs for correct formats
-  if(is.vector(W_real) != TRUE)
+  if(!is.vector(W_real))
     stop("Error: W_real must be a vector")
 
-  if(is.vector(W_sim) != TRUE & is.null(W_sim) == FALSE)
+  if(!is.vector(W_sim) && !is.null(W_sim))
     stop("Error: W_sim must be a vector or NULL.")
 
-  if(is.matrix(X) != TRUE & is.data.frame(X) != TRUE)
+  if(!is.matrix(X) && !is.data.frame(X))
     stop("Error: X must be a matrix or data frame.")
 
   # NA/NaN checks
@@ -115,13 +98,13 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
     stop("X contains NA or NaN values. Remove or impute before running random_check().", call. = FALSE)
 
   #Print message if permutation selected
-  if(is.null(W_sim) == TRUE){
-    cat("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n\n\n")} else {
-      cat("Simulated Assignment Vector Provided, Null Distribution Generated Using Simulated Treatment Assignment.\n\n\n")
+  if(is.null(W_sim)){
+    message("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n")} else {
+      message("Simulated Assignment Vector Provided, Null Distribution Generated Using Simulated Treatment Assignment.\n")
     }
 
   #Print simple count table(s)
-  if(length(unique(W_real)) <= 2 & !is.null(W_sim)){cat("Simple Count Table(s)\n\n"); print(table(W_real)); print(table(W_sim))}
+  if(length(unique(W_real)) <= 2 & !is.null(W_sim)){message("Simple Count Table(s)\n"); message(paste(utils::capture.output(print(table(W_real))), collapse = "\n")); message(paste(utils::capture.output(print(table(W_sim))), collapse = "\n"))}
 
   # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
   X_grf <- as.data.frame(X)
@@ -136,16 +119,16 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   }
 
   #Check if simulated treatment assignments provided, if not, permute the real treatment assignment vector.
-  if(is.null(W_sim) == TRUE){
+  if(is.null(W_sim)){
     set.seed(R.seed + 1L)
     W_sim <- sample(W_real, size = length(W_real), replace = FALSE)
   }
 
   # Build a treatment propensity model with the real treatment assignment vector. Boosted reg forest from grf.
-  g.real  <- grf::boosted_regression_forest(X = X_matrix, Y = W_real, honesty = T, tune.parameters = "all", seed = grf.seed)
+  g.real  <- grf::boosted_regression_forest(X = X_matrix, Y = W_real, honesty = TRUE, tune.parameters = "all", seed = grf.seed)
 
   # Build a treatment propensity model with the simulated treatment assignment vector. Boosted reg forest from grf.
-  g.sim   <- grf::boosted_regression_forest(X = X_matrix, Y = W_sim,  honesty = T, tune.parameters = "all", seed = grf.seed)
+  g.sim   <- grf::boosted_regression_forest(X = X_matrix, Y = W_sim,  honesty = TRUE, tune.parameters = "all", seed = grf.seed)
 
   # Build a data frame for the diagnostics plot
   plot.df <- data.frame(var = factor(c(rep("Real",NROW(g.real$predictions)),rep("Null",NROW(g.sim$predictions))),
@@ -174,7 +157,7 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
     if(max(plot.df$val) > 1 | min(plot.df$val) < 0){scale_x_continuous(expand = c(0, 0))}else{scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))}
 
   g <- g +
-    if(facet == TRUE){facet_wrap(~treat)}
+    if(isTRUE(facet)){facet_wrap(~treat)}
 
   #Create the results object list
   results <- list(

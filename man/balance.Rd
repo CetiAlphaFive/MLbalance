@@ -83,7 +83,7 @@ Supports both binary and multi-arm treatments. For multi-arm treatments, pairwis
 are made between each treatment arm and the control group.
 }
 \examples{
-\dontrun{
+\donttest{
 # Generate example data (binary treatment)
 n <- 500
 p <- 10

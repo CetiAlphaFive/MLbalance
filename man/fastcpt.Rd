@@ -87,7 +87,7 @@ Code derived from the cpt package by Johann Gagnon-Bartsch. This version is opti
 Description of cpt: Non-parametric test for equality of multivariate distributions. Trains a classifier to classify (multivariate) observations as coming from one of several distributions. If the classifier is able to classify the observations better than would be expected by chance (using permutation inference), then the null hypothesis that the distributions are equal is rejected.
 }
 \examples{
-\dontrun{
+\donttest{
 # Generate example data
 n <- 200
 p <- 10

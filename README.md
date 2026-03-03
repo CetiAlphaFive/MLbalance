@@ -1,5 +1,5 @@
 
-# Machine Learning Balance <a href='https://github.com/MLCause/MLbalance/blob/master/man/figures/mlbalance_sticker.png'><img src='man/figures/mlbalance_sticker.png' align="right" height="139" /></a>
+# Machine Learning Balance <a href='https://github.com/CetiAlphaFive/MLbalance/blob/master/man/figures/mlbalance_sticker.png'><img src='man/figures/mlbalance_sticker.png' align="right" height="139" /></a>
 
 MLbalance is a suite of machine learning balance tests and estimation
 tools for experimental and observational data, including a fast

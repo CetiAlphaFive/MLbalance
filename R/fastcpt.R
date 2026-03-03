@@ -33,7 +33,7 @@ utils::globalVariables(c("pkgs"))
 #' \item{alpha}{The significance level used for pass/fail determination.}
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # Generate example data
 #' n <- 200
 #' p <- 10
@@ -54,6 +54,10 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     comb.method = "fisher", R.seed = 1995, ranger.seed = 1995, parallel = FALSE,
     alpha = 0.05, progress = TRUE)
 {
+    # Save and restore RNG state
+    old_seed <- .save_rng_state()
+    on.exit(.restore_rng_state(old_seed), add = TRUE)
+
     # Check required packages based on what's needed
     if (parallel && !requireNamespace("mirai", quietly = TRUE)) {
         stop("Package 'mirai' is required for parallel processing.", call. = FALSE)

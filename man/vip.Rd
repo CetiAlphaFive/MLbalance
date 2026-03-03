@@ -17,7 +17,7 @@ A data frame with columns \code{varname} (column names of the input data) and
 This convenience function takes a trained grf model object and returns a data frame of variable importance scores using grf's simple variable importance metric.
 }
 \examples{
-\dontrun{
+\donttest{
 x <- data.frame(X1 = rnorm(1000))
 y <- rnorm(1000)
 model <- grf::regression_forest(X = x, Y = y)

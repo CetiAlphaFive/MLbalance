@@ -41,7 +41,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' \item{multiarm}{Logical indicating whether this is a multi-arm analysis.}
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # Generate example data (binary treatment)
 #' n <- 500
 #' p <- 10
@@ -65,6 +65,10 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @export
 balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = "ferns", seed = 1995,
                     control = NULL, fastcpt.args = list()) {
+
+  # Save and restore RNG state
+  old_seed <- .save_rng_state()
+  on.exit(.restore_rng_state(old_seed), add = TRUE)
 
   # Check for grf
   if (!requireNamespace("grf", quietly = TRUE)) {

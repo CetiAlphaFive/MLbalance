@@ -12,6 +12,7 @@ A suite of machine learning balance tests and estimation tools for experimental 
 Useful links:
 \itemize{
   \item \url{https://github.com/CetiAlphaFive/MLbalance}
+  \item Report bugs at \url{https://github.com/CetiAlphaFive/MLbalance/issues}
 }
 
 }
