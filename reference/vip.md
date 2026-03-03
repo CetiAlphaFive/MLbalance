@@ -25,10 +25,12 @@ importance.
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
+# \donttest{
 x <- data.frame(X1 = rnorm(1000))
 y <- rnorm(1000)
 model <- grf::regression_forest(X = x, Y = y)
 vip(model)
-} # }
+#>   varname vip
+#> 1      X1   1
+# }
 ```

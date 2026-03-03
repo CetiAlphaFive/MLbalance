@@ -15,6 +15,8 @@ Useful links:
 
 - <https://github.com/CetiAlphaFive/MLbalance>
 
+- Report bugs at <https://github.com/CetiAlphaFive/MLbalance/issues>
+
 ## Author
 
 **Maintainer**: Jack T. Rametta <jtrametta@gmail.com>

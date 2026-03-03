@@ -111,7 +111,7 @@ A named list containing:
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
+# \donttest{
 n <- 1000
 p <- 20
 X <- matrix(rnorm(n*p,0,1),n,p)
@@ -120,6 +120,8 @@ w_real <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1,
 df <- data.frame(w_real,X)
 r.check <- random_check(W_real = df$w_real,
                         X = subset(df, select = -w_real))
+#> No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.
 r.check$plot
-} # }
+
+# }
 ```

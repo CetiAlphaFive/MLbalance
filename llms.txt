@@ -1,4 +1,4 @@
-# Machine Learning Balance [![](reference/figures/mlbalance_sticker.png)](https://github.com/MLCause/MLbalance/blob/master/man/figures/mlbalance_sticker.png)
+# Machine Learning Balance [![](reference/figures/mlbalance_sticker.png)](https://github.com/CetiAlphaFive/MLbalance/blob/master/man/figures/mlbalance_sticker.png)
 
 MLbalance is a suite of machine learning balance tests and estimation
 tools for experimental and observational data, including a fast
