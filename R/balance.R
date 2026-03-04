@@ -262,25 +262,23 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
     # 3. Optional treatment effect estimation (only if Y provided)
     if (!is.null(Y_sub)) {
-      # Compute difference-in-means
-      Y1 <- Y_sub[W_binary == 1]
-      Y0 <- Y_sub[W_binary == 0]
-      dim_est <- mean(Y1) - mean(Y0)
-      if (!is.null(clusters_sub)) {
-        cluster_means_1 <- tapply(Y_sub[W_binary == 1], clusters_sub[W_binary == 1], mean)
-        cluster_means_0 <- tapply(Y_sub[W_binary == 0], clusters_sub[W_binary == 0], mean)
-        dim_se <- sqrt(stats::var(cluster_means_1) / length(cluster_means_1) +
-                       stats::var(cluster_means_0) / length(cluster_means_0))
-      } else {
-        dim_se <- sqrt(stats::var(Y1) / length(Y1) + stats::var(Y0) / length(Y0))
-      }
-      dim_ci <- dim_est + c(-1, 1) * stats::qnorm(0.975) * dim_se
+      # Compute difference-in-means via estimatr (handles clusters automatically)
+      dim_fit <- estimatr::difference_in_means(
+        Y_sub ~ W_binary,
+        clusters = clusters_sub
+      )
+      dim_est <- dim_fit$coefficients[[1]]
+      dim_se  <- dim_fit$std.error[[1]]
 
       dim_results[[arm_name]] <- list(
         estimate = dim_est,
         std.err = dim_se,
-        ci = dim_ci
+        ci = .make_ci(dim_est, dim_se)
       )
+
+      # Needed for influence function below
+      Y1 <- Y_sub[W_binary == 1]
+      Y0 <- Y_sub[W_binary == 0]
 
       e_hat <- pscores_real_list[[arm_name]]
 
@@ -310,7 +308,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       ipw_results[[arm_name]] <- list(
         estimate = ate_ipw["estimate"],
         std.err  = ate_ipw["std.err"],
-        ci       = ate_ipw["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_ipw["std.err"]
+        ci       = .make_ci(ate_ipw["estimate"], ate_ipw["std.err"])
       )
 
       # Outcome-adjusted: constant propensity, boosted-RF outcome model
@@ -328,7 +326,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       aipw_const_results[[arm_name]] <- list(
         estimate = ate_const["estimate"],
         std.err  = ate_const["std.err"],
-        ci       = ate_const["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_const["std.err"]
+        ci       = .make_ci(ate_const["estimate"], ate_const["std.err"])
       )
 
       # Doubly robust (AIPW): boosted-RF propensity + boosted-RF outcome model
@@ -347,7 +345,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       aipw_results[[arm_name]] <- list(
         estimate = ate["estimate"],
         std.err  = ate["std.err"],
-        ci       = ate["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate["std.err"]
+        ci       = .make_ci(ate["estimate"], ate["std.err"])
       )
 
       # Per-observation influence functions for covariance computation
@@ -381,17 +379,17 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
           ipw = list(
             estimate = ate_ipw_ow["estimate"],
             std.err  = ate_ipw_ow["std.err"],
-            ci       = ate_ipw_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_ipw_ow["std.err"]
+            ci       = .make_ci(ate_ipw_ow["estimate"], ate_ipw_ow["std.err"])
           ),
           aipw_const = list(
             estimate = ate_oadj_ow["estimate"],
             std.err  = ate_oadj_ow["std.err"],
-            ci       = ate_oadj_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_oadj_ow["std.err"]
+            ci       = .make_ci(ate_oadj_ow["estimate"], ate_oadj_ow["std.err"])
           ),
           aipw = list(
             estimate = ate_aipw_ow["estimate"],
             std.err  = ate_aipw_ow["std.err"],
-            ci       = ate_aipw_ow["estimate"] + c(-1, 1) * stats::qnorm(0.975) * ate_aipw_ow["std.err"]
+            ci       = .make_ci(ate_aipw_ow["estimate"], ate_aipw_ow["std.err"])
           )
         )
       }

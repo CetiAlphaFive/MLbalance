@@ -53,6 +53,12 @@ utils::globalVariables(character(0))
 
 #' @keywords internal
 #' @noRd
+.make_ci <- function(estimate, se, alpha = 0.05) {
+  estimate + c(-1, 1) * stats::qnorm(1 - alpha / 2) * se
+}
+
+#' @keywords internal
+#' @noRd
 .validate_clusters_blocks <- function(clusters, blocks, n, paired) {
   if (!is.null(clusters)) {
     if (length(clusters) != n)
