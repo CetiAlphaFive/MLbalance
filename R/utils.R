@@ -97,7 +97,7 @@ utils::globalVariables(character(0))
   if (!is.null(clusters) && is.null(blocks)) {
     # Shuffle cluster-level labels, map back
     uclust <- unique(clusters)
-    clust_labels <- as.vector(tapply(T, clusters, function(x) x[1L]))
+    clust_labels <- as.vector(tapply(T, clusters, function(x) as.character(x[1L])))
     names(clust_labels) <- uclust
     perm_labels <- clust_labels[sample(length(clust_labels))]
     names(perm_labels) <- uclust
@@ -117,7 +117,7 @@ utils::globalVariables(character(0))
   for (b in unique(blocks)) {
     b_idx <- which(blocks == b)
     b_clusters <- unique(clusters[b_idx])
-    clust_labels <- as.vector(tapply(T[b_idx], clusters[b_idx], function(x) x[1L]))
+    clust_labels <- as.vector(tapply(T[b_idx], clusters[b_idx], function(x) as.character(x[1L])))
     names(clust_labels) <- b_clusters
     perm_labels <- clust_labels[sample(length(clust_labels))]
     names(perm_labels) <- b_clusters
