@@ -67,8 +67,14 @@ vip <- function(model){
 #'                         X = subset(df, select = -w_real))
 #' r.check$plot
 #' }
+#' @param clusters Optional vector of cluster identifiers (same length as \code{W_real}). When
+#'   provided, the null permutation shuffles treatment labels at the cluster level and the
+#'   propensity models receive cluster information. Treatment must be constant within each cluster.
+#' @param blocks Optional vector of block identifiers (same length as \code{W_real}). When
+#'   provided, the null permutation is restricted to within each block.
 #' @export
-random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995, breaks = 25, facet = FALSE){
+random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995, breaks = 25, facet = FALSE,
+                         clusters = NULL, blocks = NULL){
 
   # Save and restore RNG state
   old_seed <- .save_rng_state()
@@ -97,6 +103,9 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   if (any(is.na(as.matrix(X))))
     stop("X contains NA or NaN values. Remove or impute before running random_check().", call. = FALSE)
 
+  .validate_clusters_blocks(clusters, blocks, length(W_real), paired = FALSE)
+  if (!is.null(clusters)) .validate_clusters_treatment(W_real, clusters)
+
   #Print message if permutation selected
   if(is.null(W_sim)){
     message("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n")} else {
@@ -121,14 +130,14 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   #Check if simulated treatment assignments provided, if not, permute the real treatment assignment vector.
   if(is.null(W_sim)){
     set.seed(R.seed + 1L)
-    W_sim <- sample(W_real, size = length(W_real), replace = FALSE)
+    W_sim <- .permute_treatment(W_real, clusters, blocks)
   }
 
   # Build a treatment propensity model with the real treatment assignment vector. Boosted reg forest from grf.
-  g.real  <- grf::boosted_regression_forest(X = X_matrix, Y = W_real, honesty = TRUE, tune.parameters = "all", seed = grf.seed)
+  g.real  <- grf::boosted_regression_forest(X = X_matrix, Y = W_real, honesty = TRUE, tune.parameters = "all", seed = grf.seed, clusters = clusters)
 
   # Build a treatment propensity model with the simulated treatment assignment vector. Boosted reg forest from grf.
-  g.sim   <- grf::boosted_regression_forest(X = X_matrix, Y = W_sim,  honesty = TRUE, tune.parameters = "all", seed = grf.seed)
+  g.sim   <- grf::boosted_regression_forest(X = X_matrix, Y = W_sim,  honesty = TRUE, tune.parameters = "all", seed = grf.seed, clusters = clusters)
 
   # Build a data frame for the diagnostics plot
   plot.df <- data.frame(var = factor(c(rep("Real",NROW(g.real$predictions)),rep("Null",NROW(g.sim$predictions))),
@@ -169,7 +178,9 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
     "prop.model.sim.tuning"  = g.sim$forests[[1]]$tunable.params,
     "treat.props.sim"        = g.sim$predictions,
     "plot.df"                = plot.df,
-    "plot"                   = g)
+    "plot"                   = g,
+    "clusters"               = clusters,
+    "blocks"                 = blocks)
 
   #return the results
   return(results)

@@ -50,3 +50,72 @@ utils::globalVariables(character(0))
 
   base
 }
+
+#' @keywords internal
+#' @noRd
+.validate_clusters_blocks <- function(clusters, blocks, n, paired) {
+  if (!is.null(clusters)) {
+    if (length(clusters) != n)
+      stop("'clusters' must have the same length as the number of observations.", call. = FALSE)
+    if (any(is.na(clusters)))
+      stop("'clusters' contains NA values.", call. = FALSE)
+  }
+  if (!is.null(blocks)) {
+    if (length(blocks) != n)
+      stop("'blocks' must have the same length as the number of observations.", call. = FALSE)
+    if (any(is.na(blocks)))
+      stop("'blocks' contains NA values.", call. = FALSE)
+  }
+  if (paired && !is.null(blocks))
+    stop("Cannot use both 'paired' and 'blocks'.", call. = FALSE)
+}
+
+#' @keywords internal
+#' @noRd
+.validate_clusters_treatment <- function(T, clusters) {
+  constant <- tapply(T, clusters, function(x) length(unique(x)) == 1L)
+  if (!all(constant)) {
+    bad <- names(constant)[!constant]
+    stop(sprintf("Treatment is not constant within cluster(s): %s",
+                 paste(bad, collapse = ", ")), call. = FALSE)
+  }
+}
+
+#' @keywords internal
+#' @noRd
+.permute_treatment <- function(T, clusters = NULL, blocks = NULL) {
+  n <- length(T)
+  if (is.null(clusters) && is.null(blocks)) {
+    return(T[sample(n)])
+  }
+  if (!is.null(clusters) && is.null(blocks)) {
+    # Shuffle cluster-level labels, map back
+    uclust <- unique(clusters)
+    clust_labels <- as.vector(tapply(T, clusters, function(x) x[1L]))
+    names(clust_labels) <- uclust
+    perm_labels <- clust_labels[sample(length(clust_labels))]
+    names(perm_labels) <- uclust
+    return(as.vector(unname(perm_labels[as.character(clusters)])))
+  }
+  if (is.null(clusters) && !is.null(blocks)) {
+    # Within-block permutation of individual units
+    newT <- T
+    for (b in unique(blocks)) {
+      idx <- which(blocks == b)
+      newT[idx] <- T[idx[sample(length(idx))]]
+    }
+    return(newT)
+  }
+  # Both clusters and blocks
+  newT <- T
+  for (b in unique(blocks)) {
+    b_idx <- which(blocks == b)
+    b_clusters <- unique(clusters[b_idx])
+    clust_labels <- as.vector(tapply(T[b_idx], clusters[b_idx], function(x) x[1L]))
+    names(clust_labels) <- b_clusters
+    perm_labels <- clust_labels[sample(length(clust_labels))]
+    names(perm_labels) <- b_clusters
+    newT[b_idx] <- as.vector(unname(perm_labels[as.character(clusters[b_idx])]))
+  }
+  return(newT)
+}

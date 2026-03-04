@@ -24,6 +24,12 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @param seed Random seed for reproducibility. Default is 1995.
 #' @param control Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
 #'   the first factor level is used as control. A message is displayed indicating the control assumption.
+#' @param clusters Optional vector of cluster identifiers (same length as \code{W}). When provided,
+#'   permutations in the balance test shuffle treatment labels at the cluster level, and treatment
+#'   effect standard errors use cluster-robust variance estimators. Treatment must be constant
+#'   within each cluster.
+#' @param blocks Optional vector of block identifiers (same length as \code{W}). When provided,
+#'   permutations in the balance test are restricted to within each block.
 #' @param fastcpt.args A named list of additional arguments to pass to \code{\link{fastcpt}}. For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.
 #'
 #' @return A list of class "balance" containing:
@@ -64,7 +70,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #'
 #' @export
 balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = "ferns", seed = 1995,
-                    control = NULL, fastcpt.args = list()) {
+                    control = NULL, clusters = NULL, blocks = NULL, fastcpt.args = list()) {
 
   # Save and restore RNG state
   old_seed <- .save_rng_state()
@@ -97,6 +103,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     if (any(is.na(Y)))
       stop("Y contains NA values. Remove or impute before running balance().", call. = FALSE)
   }
+
+  .validate_clusters_blocks(clusters, blocks, length(W), paired = FALSE)
+  if (!is.null(clusters)) .validate_clusters_treatment(W, clusters)
 
   # Determine control level
   W_factor <- as.factor(W)
@@ -173,7 +182,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     fastcpt_base_args <- list(
       Z = X_df, T = W_factor,
       class.methods = class.method,
-      perm.N = perm.N, alpha = alpha, R.seed = seed
+      perm.N = perm.N, alpha = alpha, R.seed = seed,
+      clusters = clusters, blocks = blocks
     )
     fastcpt_all_args <- utils::modifyList(fastcpt_base_args, fastcpt.args)
     balance_test_joint <- do.call(fastcpt, fastcpt_all_args)
@@ -190,6 +200,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     X_sub <- X_df[idx, , drop = FALSE]
     X_matrix_sub <- X_matrix[idx, , drop = FALSE]
     Y_sub <- if (!is.null(Y)) Y[idx] else NULL
+    clusters_sub <- if (!is.null(clusters)) clusters[idx] else NULL
+    blocks_sub <- if (!is.null(blocks)) blocks[idx] else NULL
 
     n_per_arm[[arm_name]] <- list(
       control = sum(W_binary == 0),
@@ -204,7 +216,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         class.methods = class.method,
         perm.N = perm.N,
         alpha = alpha,
-        R.seed = seed
+        R.seed = seed,
+        clusters = clusters_sub,
+        blocks = blocks_sub
       )
       fastcpt_all_args <- utils::modifyList(fastcpt_base_args, fastcpt.args)
       balance_test <- do.call(fastcpt, fastcpt_all_args)
@@ -218,7 +232,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       Y = W_binary,
       honesty = TRUE,
       tune.parameters = "all",
-      seed = seed
+      seed = seed,
+      clusters = clusters_sub
     )
     pscores_real_list[[arm_name]] <- as.numeric(prop_real$predictions)
 
@@ -227,13 +242,14 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
     # Null (permuted) treatment propensities
     set.seed(seed + which(treatment_arms == arm))
-    W_null <- sample(W_binary)
+    W_null <- .permute_treatment(W_binary, clusters_sub, blocks_sub)
     prop_null <- grf::boosted_regression_forest(
       X = X_matrix_sub,
       Y = W_null,
       honesty = TRUE,
       tune.parameters = "all",
-      seed = seed
+      seed = seed,
+      clusters = clusters_sub
     )
     pscores_null_list[[arm_name]] <- as.numeric(prop_null$predictions)
 
@@ -250,7 +266,14 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       Y1 <- Y_sub[W_binary == 1]
       Y0 <- Y_sub[W_binary == 0]
       dim_est <- mean(Y1) - mean(Y0)
-      dim_se <- sqrt(stats::var(Y1) / length(Y1) + stats::var(Y0) / length(Y0))
+      if (!is.null(clusters_sub)) {
+        cluster_means_1 <- tapply(Y_sub[W_binary == 1], clusters_sub[W_binary == 1], mean)
+        cluster_means_0 <- tapply(Y_sub[W_binary == 0], clusters_sub[W_binary == 0], mean)
+        dim_se <- sqrt(stats::var(cluster_means_1) / length(cluster_means_1) +
+                       stats::var(cluster_means_0) / length(cluster_means_0))
+      } else {
+        dim_se <- sqrt(stats::var(Y1) / length(Y1) + stats::var(Y0) / length(Y0))
+      }
       dim_ci <- dim_est + c(-1, 1) * stats::qnorm(0.975) * dim_se
 
       dim_results[[arm_name]] <- list(
@@ -267,7 +290,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         Y = Y_sub,
         honesty = TRUE,
         tune.parameters = "all",
-        seed = seed
+        seed = seed,
+        clusters = clusters_sub
       )
       Y_hat <- as.numeric(outcome_forest$predictions)
 
@@ -279,7 +303,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = e_hat,
         Y.hat = rep(mean(Y_sub), length(Y_sub)),
         seed  = seed,
-        num.trees = 2000
+        num.trees = 2000,
+        clusters = clusters_sub
       )
       ate_ipw <- grf::average_treatment_effect(cf_ipw, target.sample = "all")
       ipw_results[[arm_name]] <- list(
@@ -296,7 +321,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = rep(mean(W_binary), length(W_binary)),
         Y.hat = Y_hat,
         seed  = seed,
-        num.trees = 2000
+        num.trees = 2000,
+        clusters = clusters_sub
       )
       ate_const <- grf::average_treatment_effect(cf_const, target.sample = "all")
       aipw_const_results[[arm_name]] <- list(
@@ -313,7 +339,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = e_hat,
         Y.hat = Y_hat,
         seed  = seed,
-        num.trees = 2000
+        num.trees = 2000,
+        clusters = clusters_sub
       )
       cf_list[[arm_name]] <- cf
       ate <- grf::average_treatment_effect(cf, target.sample = "all")
@@ -337,7 +364,13 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       score_mat <- cbind(dim = scores_dim, ipw = scores_ipw,
                          oadj = scores_oadj, aipw = scores_aipw)
       n_sub <- length(Y_sub)
-      ate_cov_list[[arm_name]] <- stats::cov(score_mat) / n_sub
+      if (!is.null(clusters_sub)) {
+        cluster_score_sums <- rowsum(score_mat, clusters_sub)
+        n_clusters <- nrow(cluster_score_sums)
+        ate_cov_list[[arm_name]] <- stats::cov(cluster_score_sums) / (n_clusters^2)
+      } else {
+        ate_cov_list[[arm_name]] <- stats::cov(score_mat) / n_sub
+      }
 
       # Overlap-weighted estimates when extreme propensity scores detected
       if (has_overlap_issue) {
@@ -389,7 +422,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       n_control = n_per_arm[[1]]$control,
       control = control,
       arms = treatment_arms,
-      multiarm = FALSE
+      multiarm = FALSE,
+      clusters = clusters,
+      blocks = blocks
     )
   } else {
     result <- list(
@@ -412,7 +447,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       n_per_arm = n_per_arm,
       control = control,
       arms = treatment_arms,
-      multiarm = TRUE
+      multiarm = TRUE,
+      clusters = clusters,
+      blocks = blocks
     )
   }
 
@@ -431,6 +468,12 @@ print.balance <- function(x, ...) {
   if (!x$multiarm) {
     status <- ifelse(x$passed, "PASS", "FAIL")
     cat(sprintf("  Control:  '%s'\n", x$control))
+    if (!is.null(x$clusters) || !is.null(x$blocks)) {
+      design_parts <- character(0)
+      if (!is.null(x$clusters)) design_parts <- c(design_parts, sprintf("%d clusters", length(unique(x$clusters))))
+      if (!is.null(x$blocks)) design_parts <- c(design_parts, sprintf("%d blocks", length(unique(x$blocks))))
+      cat(sprintf("  Design:   %s\n", paste(design_parts, collapse = ", ")))
+    }
     cat(sprintf("  Balance:  p = %.4f  [%s]\n", x$balance_test$pval, status))
     if (!is.null(x$dim)) {
       cat("\nTreatment Effect Estimates\n")
@@ -636,6 +679,10 @@ summary.balance <- function(object, ...) {
   cat("1. SAMPLE\n")
   cat(LINE)
   cat(sprintf("   Observations:    %d\n", object$n))
+  if (!is.null(object$clusters))
+    cat(sprintf("   Clusters:        %d\n", length(unique(object$clusters))))
+  if (!is.null(object$blocks))
+    cat(sprintf("   Blocks:          %d\n", length(unique(object$blocks))))
   if (!object$multiarm) {
     cat(sprintf("   Control ('%s'):  %d (%.1f%%)\n",
                 object$control, object$n_control,
@@ -831,6 +878,11 @@ summary.balance <- function(object, ...) {
   cat("   (2,000 trees) and grf::average_treatment_effect (target = \"all\").\n")
   cat("   Standard errors use the infinitesimal jackknife (IJ) influence\n")
   cat("   function. DiM SEs use Neyman's separate-variance (Welch) formula.\n")
+  if (!is.null(object$clusters)) {
+    cat("   Cluster-robust variance estimators are used throughout (DiM SEs\n")
+    cat("   use cluster means; causal forest SEs account for clustering;\n")
+    cat("   divergence test covariance aggregates scores to cluster level).\n")
+  }
   cat("   All confidence intervals use a normal approximation.\n")
   cat("\n")
   cat("   DiM (unadjusted)\n")

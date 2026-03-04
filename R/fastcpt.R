@@ -24,6 +24,8 @@ utils::globalVariables(c("pkgs"))
 #' @param parallel Logical. If TRUE, uses mirai for parallel processing across permutations.
 #' @param alpha Significance level for pass/fail determination. Default is 0.05, which is appropriate for experimental contexts where even slight classification ability is concerning. For observational studies, a lower threshold may be more appropriate.
 #' @param progress Logical. If TRUE (default), displays a progress bar during permutation testing.
+#' @param clusters Optional vector of cluster identifiers (same length as \code{T}). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.
+#' @param blocks Optional vector of block identifiers (same length as \code{T}). When provided, permutations are restricted to within each block. Cannot be used together with \code{paired}.
 #'
 #' @return A list containing:
 #' \item{pval}{The overall p-value, after combining results from the individual classifiers.}
@@ -49,7 +51,8 @@ utils::globalVariables(c("pkgs"))
 #' @keywords multivariate
 fastcpt <-
 function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
-    ensemble.metric = "mean.prob", paired = FALSE, perm.N = 1000,
+    ensemble.metric = "mean.prob", paired = FALSE, clusters = NULL, blocks = NULL,
+    perm.N = 1000,
     leaveout.N = 100, comb.methods = c(class.methods, "ensemble"),
     comb.method = "fisher", R.seed = 1995, ranger.seed = 1995, parallel = FALSE,
     alpha = 0.05, progress = TRUE)
@@ -81,6 +84,9 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
         stop("Z contains NA or NaN values. Remove or impute missing data before running fastcpt().", call. = FALSE)
     if (any(is.na(T)))
         stop("T contains NA values.", call. = FALSE)
+
+    .validate_clusters_blocks(clusters, blocks, length(T), paired)
+    if (!is.null(clusters)) .validate_clusters_treatment(T, clusters)
 
     T = as.factor(T)
     set.seed(R.seed)
@@ -117,7 +123,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     else {
         # Pre-generate all permutations and per-iteration seeds (ensures reproducibility)
         base_seed <- sample.int(.Machine$integer.max, 1)
-        perm_Ts <- lapply(1:perm.N, function(i) T[sample(length(T))])
+        perm_Ts <- lapply(1:perm.N, function(i) as.factor(.permute_treatment(T, clusters = clusters, blocks = blocks)))
         perm_seeds <- base_seed + (1:perm.N)
 
         if (parallel) {
@@ -182,12 +188,12 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
         result <- list(pval = pvals[1], teststat = teststat[1],
             nulldist = nulldist[, 1], pvals = pvals[1],
             class.methods = class.methods, metric = metric, perm.N = perm.N,
-            alpha = alpha)
+            alpha = alpha, clusters = clusters, blocks = blocks)
     } else {
         result <- list(pval = pval, teststat = teststat, nulldist = nulldist,
             pvals = pvals,
             class.methods = class.methods, metric = metric, perm.N = perm.N,
-            alpha = alpha)
+            alpha = alpha, clusters = clusters, blocks = blocks)
     }
     class(result) <- "fastcpt"
     return(result)

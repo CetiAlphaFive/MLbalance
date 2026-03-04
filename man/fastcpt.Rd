@@ -15,6 +15,8 @@ fastcpt(
   metric = "probability",
   ensemble.metric = "mean.prob",
   paired = FALSE,
+  clusters = NULL,
+  blocks = NULL,
   perm.N = 1000,
   leaveout.N = 100,
   comb.methods = c(class.methods, "ensemble"),
@@ -46,6 +48,10 @@ fastcpt(
 \item{ensemble.metric}{Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", or "mean.prob". The default value ("mean.prob") is recommended.}
 
 \item{paired}{Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.}
+
+\item{clusters}{Optional vector of cluster identifiers (same length as \code{T}). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.}
+
+\item{blocks}{Optional vector of block identifiers (same length as \code{T}). When provided, permutations are restricted to within each block. Cannot be used together with \code{paired}.}
 
 \item{perm.N}{The number of permutations.}
 

@@ -109,6 +109,12 @@ summary.fastcpt <- function(object, ...) {
   # Metric used
   metric_display <- get_metric_name(object$metric)
 
+  # Cluster/block info
+  if (!is.null(object$clusters))
+    cat(sprintf("  Clusters:          %d\n", length(unique(object$clusters))))
+  if (!is.null(object$blocks))
+    cat(sprintf("  Blocks:            %d\n", length(unique(object$blocks))))
+
   # Single classifier case
   if (length(object$pvals) == 1) {
     classifier_display <- get_classifier_name(object$class.methods[1])
@@ -168,6 +174,12 @@ print.fastcpt <- function(x, ...) {
 
   cat("\nClassification Permutation Test\n")
   cat(sprintf("  P-value: %.4f (%s)\n", x$pval, status))
+  if (!is.null(x$clusters) || !is.null(x$blocks)) {
+    design_parts <- character(0)
+    if (!is.null(x$clusters)) design_parts <- c(design_parts, sprintf("%d clusters", length(unique(x$clusters))))
+    if (!is.null(x$blocks)) design_parts <- c(design_parts, sprintf("%d blocks", length(unique(x$blocks))))
+    cat(sprintf("  Design:  %s\n", paste(design_parts, collapse = ", ")))
+  }
   cat("  Use summary() for details, plot() to visualize.\n\n")
 
   invisible(x)

@@ -16,6 +16,8 @@ balance(
   class.method = "ferns",
   seed = 1995,
   control = NULL,
+  clusters = NULL,
+  blocks = NULL,
   fastcpt.args = list()
 )
 
@@ -43,6 +45,14 @@ estimation (and the treatment effect plot) is skipped.}
 
 \item{control}{Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
 the first factor level is used as control. A message is displayed indicating the control assumption.}
+
+\item{clusters}{Optional vector of cluster identifiers (same length as \code{W}). When provided,
+permutations in the balance test shuffle treatment labels at the cluster level, and treatment
+effect standard errors use cluster-robust variance estimators. Treatment must be constant
+within each cluster.}
+
+\item{blocks}{Optional vector of block identifiers (same length as \code{W}). When provided,
+permutations in the balance test are restricted to within each block.}
 
 \item{fastcpt.args}{A named list of additional arguments to pass to \code{\link{fastcpt}}. For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.}
 

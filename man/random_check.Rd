@@ -11,7 +11,9 @@ random_check(
   R.seed = 1995,
   grf.seed = 1995,
   breaks = 25,
-  facet = FALSE
+  facet = FALSE,
+  clusters = NULL,
+  blocks = NULL
 )
 }
 \arguments{
@@ -28,6 +30,13 @@ random_check(
 \item{breaks}{Number of breaks in output histogram. Default is 25.}
 
 \item{facet}{facet by treatment assignment. Default is FALSE.}
+
+\item{clusters}{Optional vector of cluster identifiers (same length as \code{W_real}). When
+provided, the null permutation shuffles treatment labels at the cluster level and the
+propensity models receive cluster information. Treatment must be constant within each cluster.}
+
+\item{blocks}{Optional vector of block identifiers (same length as \code{W_real}). When
+provided, the null permutation is restricted to within each block.}
 }
 \value{
 A named list containing:
