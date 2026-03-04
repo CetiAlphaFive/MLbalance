@@ -22,6 +22,8 @@ balance(
   class.method = "ferns",
   seed = 1995,
   control = NULL,
+  clusters = NULL,
+  blocks = NULL,
   fastcpt.args = list()
 )
 
@@ -72,6 +74,20 @@ plot(x, which = "all", combined = TRUE, breaks = 25, ...)
   Optional. The value in `W` to use as the control group. If `NULL`
   (default), the first factor level is used as control. A message is
   displayed indicating the control assumption.
+
+- clusters:
+
+  Optional vector of cluster identifiers (same length as `W`). When
+  provided, permutations in the balance test shuffle treatment labels at
+  the cluster level, and treatment effect standard errors use
+  cluster-robust variance estimators. Treatment must be constant within
+  each cluster.
+
+- blocks:
+
+  Optional vector of block identifiers (same length as `W`). When
+  provided, permutations in the balance test are restricted to within
+  each block.
 
 - fastcpt.args:
 

@@ -49,7 +49,9 @@ The purpose of this exercise is to compare the real treatment propensity distrib
 <span>  R.seed <span class="op">=</span> <span class="fl">1995</span>,</span>
 <span>  grf.seed <span class="op">=</span> <span class="fl">1995</span>,</span>
 <span>  breaks <span class="op">=</span> <span class="fl">25</span>,</span>
-<span>  facet <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  facet <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  clusters <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  blocks <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -83,6 +85,17 @@ The purpose of this exercise is to compare the real treatment propensity distrib
 
 <dt id="arg-facet">facet<a class="anchor" aria-label="anchor" href="#arg-facet"></a></dt>
 <dd><p>facet by treatment assignment. Default is FALSE.</p></dd>
+
+
+<dt id="arg-clusters">clusters<a class="anchor" aria-label="anchor" href="#arg-clusters"></a></dt>
+<dd><p>Optional vector of cluster identifiers (same length as <code>W_real</code>). When
+provided, the null permutation shuffles treatment labels at the cluster level and the
+propensity models receive cluster information. Treatment must be constant within each cluster.</p></dd>
+
+
+<dt id="arg-blocks">blocks<a class="anchor" aria-label="anchor" href="#arg-blocks"></a></dt>
+<dd><p>Optional vector of block identifiers (same length as <code>W_real</code>). When
+provided, the null permutation is restricted to within each block.</p></dd>
 
 </dl></div>
     <div class="section level2">

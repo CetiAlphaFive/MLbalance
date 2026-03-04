@@ -31,6 +31,8 @@ fastcpt(
   metric = "probability",
   ensemble.metric = "mean.prob",
   paired = FALSE,
+  clusters = NULL,
+  blocks = NULL,
   perm.N = 1000,
   leaveout.N = 100,
   comb.methods = c(class.methods, "ensemble"),
@@ -100,6 +102,19 @@ print(x, ...)
   being the control observations (in the same order), or by using the
   first two rows for the first pair, the second two rows for the second
   pair, etc.
+
+- clusters:
+
+  Optional vector of cluster identifiers (same length as `T`). When
+  provided, permutations shuffle treatment labels at the cluster level
+  rather than the individual level. Treatment must be constant within
+  each cluster.
+
+- blocks:
+
+  Optional vector of block identifiers (same length as `T`). When
+  provided, permutations are restricted to within each block. Cannot be
+  used together with `paired`.
 
 - perm.N:
 

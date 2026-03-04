@@ -50,6 +50,8 @@ Description of cpt: Non-parametric test for equality of multivariate distributio
 <span>  metric <span class="op">=</span> <span class="st">"probability"</span>,</span>
 <span>  ensemble.metric <span class="op">=</span> <span class="st">"mean.prob"</span>,</span>
 <span>  paired <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  clusters <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  perm.N <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  leaveout.N <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  comb.methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">class.methods</span>, <span class="st">"ensemble"</span><span class="op">)</span>,</span>
@@ -101,6 +103,14 @@ Description of cpt: Non-parametric test for equality of multivariate distributio
 
 <dt id="arg-paired">paired<a class="anchor" aria-label="anchor" href="#arg-paired"></a></dt>
 <dd><p>Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.</p></dd>
+
+
+<dt id="arg-clusters">clusters<a class="anchor" aria-label="anchor" href="#arg-clusters"></a></dt>
+<dd><p>Optional vector of cluster identifiers (same length as <code>T</code>). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.</p></dd>
+
+
+<dt id="arg-blocks">blocks<a class="anchor" aria-label="anchor" href="#arg-blocks"></a></dt>
+<dd><p>Optional vector of block identifiers (same length as <code>T</code>). When provided, permutations are restricted to within each block. Cannot be used together with <code>paired</code>.</p></dd>
 
 
 <dt id="arg-perm-n">perm.N<a class="anchor" aria-label="anchor" href="#arg-perm-n"></a></dt>
