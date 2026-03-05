@@ -30,6 +30,13 @@ plot.fastcpt <- function(x, breaks = 25, ...){
   testval <- x$teststat
   df <- data.frame(null = x$nulldist)
 
+  # Build dynamic x-axis label from metric name
+  metric_labels <- c("probability" = "Probability", "rate" = "Classification Rate",
+                      "mse" = "MSE", "logscore" = "Log Score")
+  mn <- x$metric_name
+  x_label <- if (!is.null(mn) && mn %in% names(metric_labels))
+    paste("Test Statistic -", metric_labels[mn]) else "Test Statistic"
+
   # dynamic x-axis limits (rounded to nearest 0.1)
   x_min <- floor(min(x$nulldist) * 10) / 10
   x_max <- ceiling(max(c(x$nulldist, testval)) * 10) / 10
@@ -47,7 +54,7 @@ plot.fastcpt <- function(x, breaks = 25, ...){
     ) +
     ggplot2::geom_vline(xintercept = testval, color = color_select, linewidth = 1.25) +
     ggplot2::labs(
-      x = "Permuted Null Distribution \n (Treatment Classification Model Fit)",
+      x = x_label,
       y = "Density",
       title = "Classification Permutation Test Result",
       subtitle = subtitle_text
@@ -70,7 +77,7 @@ summary.fastcpt <- function(object, ...) {
     "lda" = "Linear Discriminant Analysis",
     "logistic" = "Logistic Regression",
     "logistic2" = "Logistic Regression (2-way)",
-    "logistic2fast" = "Fast Logistic (2-way)",
+    "glmnet2" = "Elastic Net (2-way)",
     "glmnet" = "Elastic Net (glmnet)",
     "glmnet2" = "Elastic Net (2-way)",
     "ensemble" = "Ensemble"

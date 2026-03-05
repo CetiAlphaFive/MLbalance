@@ -4,14 +4,14 @@ utils::globalVariables(c("pkgs"))
 #' (fast) Classification Permutation Test
 #'
 #' @description
-#' Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are great for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit that's faster using the RcppNumerical package, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
+#' Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are great for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit using glmnet with elastic net regularization to prevent coefficient blowup under separation, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
 #'
 #'Description of cpt: Non-parametric test for equality of multivariate distributions. Trains a classifier to classify (multivariate) observations as coming from one of several distributions. If the classifier is able to classify the observations better than would be expected by chance (using permutation inference), then the null hypothesis that the distributions are equal is rejected.
 #'
 #' @param Z The data. An n by p matrix, where n is the number of observations, and p is the number of covariates.
 #' @param T The treatment variable. Is converted to a factor.
 #' @param leaveout The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.
-#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", or "logistic2fast". Default is "ferns" which is fast and handles interactions well.
+#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast and handles interactions well.
 #' @param metric Which test statistic to use. Can be "rate" (classification accuracy rate), "mse", or "probability". The default value ("probability") is recommended.
 #' @param ensemble.metric Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", or "mean.prob". The default value ("mean.prob") is recommended.
 #' @param paired Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.
@@ -73,8 +73,8 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
             stop("Package 'ranger' is required for forest classifier.", call. = FALSE)
         }
     }
-    if ("logistic2fast" %in% class.methods && !requireNamespace("RcppNumerical", quietly = TRUE)) {
-        stop("Package 'RcppNumerical' is required for logistic2fast classifier.", call. = FALSE)
+    if ("glmnet2" %in% class.methods && !requireNamespace("glmnet", quietly = TRUE)) {
+        stop("Package 'glmnet' is required for glmnet2 classifier.", call. = FALSE)
     }
 
     # Input validation
@@ -92,6 +92,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     set.seed(R.seed)
     train.methods = .gettrainmethods(class.methods)
     test.methods = .gettestmethods(class.methods)
+    metric_name <- if (is.character(metric)) metric else "custom"
     if (is.character(metric))
         metric = .getmetric(metric)
     if (is.character(ensemble.metric))
@@ -187,12 +188,14 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     if (length(class.methods) == 1) {
         result <- list(pval = pvals[1], teststat = teststat[1],
             nulldist = nulldist[, 1], pvals = pvals[1],
-            class.methods = class.methods, metric = metric, perm.N = perm.N,
+            class.methods = class.methods, metric = metric,
+            metric_name = metric_name, perm.N = perm.N,
             alpha = alpha, clusters = clusters, blocks = blocks)
     } else {
         result <- list(pval = pval, teststat = teststat, nulldist = nulldist,
             pvals = pvals,
-            class.methods = class.methods, metric = metric, perm.N = perm.N,
+            class.methods = class.methods, metric = metric,
+            metric_name = metric_name, perm.N = perm.N,
             alpha = alpha, clusters = clusters, blocks = blocks)
     }
     class(result) <- "fastcpt"
@@ -344,9 +347,9 @@ function (method)
             else return(.softmax(classifier, Z))
         }
     }
-    else if (method == "logistic2fast") {
+    else if (method == "glmnet2") {
         rval = function(Z, classifier, testistrain = FALSE) {
-            X <- stats::model.matrix(~.^2, data = as.data.frame(Z))
+            X <- stats::model.matrix(~.^2, data = as.data.frame(Z))[, -1, drop = FALSE]
 
             # ensure test matrix matches training columns
             miss <- setdiff(classifier$cols, colnames(X))
@@ -356,9 +359,9 @@ function (method)
             }
             X <- X[, classifier$cols, drop = FALSE]
 
-            eta <- drop(X %*% classifier$beta)
-            p1  <- 1 / (1 + exp(-eta))
-            cbind(1 - p1, p1)  # n x 2 matrix, columns follow factor level order
+            p1 <- as.numeric(stats::predict(classifier$fit, newx = X,
+                                             type = "response"))
+            cbind(1 - p1, p1)
         }
     }
     else {
@@ -437,17 +440,16 @@ function (method)
             return(rFerns::rFerns(T ~ ., importance = "none", ferns = 500L, depth = 5L, data = data.frame(T = T, Z)))
         }
     }
-    else if (method == "logistic2fast") {
+    else if (method == "glmnet2") {
         rval = function(Z, T) {
             if (length(levels(T)) != 2)
-                stop("logistic2fast supports binary T only.")
-            X <- stats::model.matrix(~.^2, data = as.data.frame(Z))  # includes intercept
-            y <- as.integer(T) - 1L                            # 0/1
-            fit <- RcppNumerical::fastLR(x = X, y = y)
-            beta <- if (!is.null(fit$coefficients)) as.numeric(fit$coefficients)
-            else if (!is.null(fit$coef))     as.numeric(fit$coef)
-            else stop("fastLR object lacks coefficients")
-            list(beta = beta, cols = colnames(X))
+                stop("glmnet2 supports binary T only.")
+            X <- stats::model.matrix(~.^2, data = as.data.frame(Z))[, -1, drop = FALSE]
+            y <- as.integer(T) - 1L
+            fit <- glmnet::glmnet(x = X, y = y, family = "binomial",
+                                   alpha = 0.5, lambda = 0.01,
+                                   nlambda = 1, thresh = 1e-5, maxit = 1000L)
+            list(fit = fit, cols = colnames(X))
         }
     }
     else {
