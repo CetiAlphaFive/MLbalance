@@ -91,17 +91,22 @@ utils::globalVariables(character(0))
 #' @noRd
 .permute_treatment <- function(T, clusters = NULL, blocks = NULL) {
   n <- length(T)
+  original_class <- class(T)
+  original_mode <- storage.mode(T)
+
   if (is.null(clusters) && is.null(blocks)) {
     return(T[sample(n)])
   }
   if (!is.null(clusters) && is.null(blocks)) {
     # Shuffle cluster-level labels, map back
     uclust <- unique(clusters)
-    clust_labels <- as.vector(tapply(T, clusters, function(x) as.character(x[1L])))
+    clust_labels <- as.vector(tapply(T, clusters, function(x) x[1L]))
     names(clust_labels) <- uclust
     perm_labels <- clust_labels[sample(length(clust_labels))]
     names(perm_labels) <- uclust
-    return(as.vector(unname(perm_labels[as.character(clusters)])))
+    result <- as.vector(unname(perm_labels[as.character(clusters)]))
+    storage.mode(result) <- original_mode
+    return(result)
   }
   if (is.null(clusters) && !is.null(blocks)) {
     # Within-block permutation of individual units
@@ -117,7 +122,7 @@ utils::globalVariables(character(0))
   for (b in unique(blocks)) {
     b_idx <- which(blocks == b)
     b_clusters <- unique(clusters[b_idx])
-    clust_labels <- as.vector(tapply(T[b_idx], clusters[b_idx], function(x) as.character(x[1L])))
+    clust_labels <- as.vector(tapply(T[b_idx], clusters[b_idx], function(x) x[1L]))
     names(clust_labels) <- b_clusters
     perm_labels <- clust_labels[sample(length(clust_labels))]
     names(perm_labels) <- b_clusters
