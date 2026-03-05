@@ -7,11 +7,12 @@ variety of features available in other packages. This code converts to
 ranger and also adds an option for random ferns. Although obscure,
 random ferns are great for this - a very solid classifier that natively
 handles interactions and runs extremely fast on pretty much any
-hardware. I've also worked to add a version of logit that's faster using
-the RcppNumerical package, and added a basic parallel backend so the
-function runs reasonably quickly on larger datasets. Taken together
-these changes allow the user to run cpt in seconds rather than minutes
-or even hours for many datasets.
+hardware. I've also worked to add a version of logit using glmnet with
+elastic net regularization to prevent coefficient blowup under
+separation, and added a basic parallel backend so the function runs
+reasonably quickly on larger datasets. Taken together these changes
+allow the user to run cpt in seconds rather than minutes or even hours
+for many datasets.
 
 Description of cpt: Non-parametric test for equality of multivariate
 distributions. Trains a classifier to classify (multivariate)
@@ -77,8 +78,8 @@ print(x, ...)
 - class.methods:
 
   A character vector of the different classification methods to use. Can
-  be "forest", "ferns", or "logistic2fast". Default is "ferns" which is
-  fast and handles interactions well.
+  be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast
+  and handles interactions well.
 
 - metric:
 

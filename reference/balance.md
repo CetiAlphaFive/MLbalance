@@ -208,9 +208,9 @@ result
 #> Treatment Effect Estimates
 #> ------------------------------------------------------------
 #>   DiM (unadjusted):              0.5078  (SE:  0.0917)
-#>   Propensity-Adjusted:           0.5114  (SE:  0.0922)
-#>   Outcome-Adjusted:              0.5257  (SE:  0.0890)
-#>   Doubly-Robust (AIPW):          0.5271  (SE:  0.0895)
+#>   AIPW (propensity only):        0.5114  (SE:  0.0922)
+#>   AIPW (outcome only):           0.5257  (SE:  0.0890)
+#>   AIPW (doubly robust):          0.5271  (SE:  0.0895)
 #> 
 #> Use summary() for full details, plot() to visualize.
 #> 
@@ -263,26 +263,38 @@ summary(result)
 #>    Estimator                    Estimate        SE                95% CI
 #>    ---------------------------------------------------------------------
 #>    DiM (unadjusted)               0.5078    0.0917  [  0.3280,   0.6875]
-#>    Propensity-Adjusted            0.5114    0.0922  [  0.3307,   0.6921]
-#>    Outcome-Adjusted               0.5257    0.0890  [  0.3514,   0.7001]
-#>    Doubly-Robust (AIPW)           0.5271    0.0895  [  0.3518,   0.7025]
+#>    AIPW (propensity only)         0.5114    0.0922  [  0.3307,   0.6921]
+#>    AIPW (outcome only)            0.5257    0.0890  [  0.3514,   0.7001]
+#>    AIPW (doubly robust)           0.5271    0.0895  [  0.3518,   0.7025]
 #> 
 #> 5. ESTIMATOR DIVERGENCE TESTS
 #> ------------------------------------------------------------------------
 #>    Comparison                    Difference   SE(diff)   z-stat   p-value
 #>    ----------------------------------------------------------------------
-#>    DiM vs Propensity-Adjusted       -0.0036     0.0037   -0.972    0.3312  
-#>    DiM vs Outcome-Adjusted          -0.0180     0.0153   -1.176    0.2395  
-#>    DiM vs Doubly-Robust             -0.0194     0.0157   -1.238    0.2159  
-#>    Prop.-Adj. vs Doubly-Robust      -0.0157     0.0155   -1.017    0.3090  
+#>    DiM vs AIPW (propensity)         -0.0036     0.0056   -0.651    0.5147  
+#>    DiM vs AIPW (outcome)            -0.0180     0.0158   -1.135    0.2563  
+#>    DiM vs AIPW (doubly robust)      -0.0194     0.0162   -1.196    0.2315  
+#>    AIPW (prop.) vs AIPW (dr)        -0.0157     0.0155   -1.017    0.3090  
+#> 
+#>    All four estimators agree closely, indicating the ATE estimate is
+#>    robust to the choice of nuisance model specification.
 #> 
 #> 6. ESTIMATOR GUIDE
 #> ------------------------------------------------------------------------
-#>    Nuisance models (propensity and outcome) are fit using honest, tuned
-#>    boosted regression forests (grf::boosted_regression_forest;
-#>    honesty = TRUE, tune.parameters = "all"); all predictions are
-#>    out-of-bag. Treatment effects are estimated via grf::causal_forest
-#>    (2,000 trees) and grf::average_treatment_effect (target = "all").
+#>    All adjusted estimators use grf::causal_forest's AIPW framework.
+#>    They differ in which nuisance models (propensity and/or outcome)
+#>    are estimated vs. held at uninformative constants.
+#> 
+#>    We present four ATE estimates as a robustness decomposition.
+#>    Agreement across estimators signals robustness to modeling choices.
+#>    Divergence reveals which adjustment component (propensity vs.
+#>    outcome) most affects the estimate and warrants investigation.
+#> 
+#>    Nuisance models are fit using honest, tuned boosted regression
+#>    forests (grf::boosted_regression_forest; honesty = TRUE,
+#>    tune.parameters = "all"); all predictions are out-of-bag.
+#>    Treatment effects are estimated via grf::causal_forest (2,000
+#>    trees) and grf::average_treatment_effect (target = "all").
 #>    Standard errors use the infinitesimal jackknife (IJ) influence
 #>    function. DiM SEs use Neyman's separate-variance (Welch) formula.
 #>    All confidence intervals use a normal approximation.
@@ -290,18 +302,16 @@ summary(result)
 #>    DiM (unadjusted)
 #>      E[Y|W=1] - E[Y|W=0]. No covariate adjustment.
 #> 
-#>    Propensity-Adjusted
-#>      W.hat = boosted-RF propensity scores; Y.hat = mean(Y) (constant).
-#>      Corrects for covariate imbalance without outcome modeling.
+#>    AIPW (propensity only)
+#>      W.hat = boosted-RF propensity; Y.hat = mean(Y) (constant).
+#>      Isolates the effect of propensity score reweighting.
 #> 
-#>    Outcome-Adjusted
+#>    AIPW (outcome only)
 #>      W.hat = mean(W) (constant); Y.hat = boosted-RF outcome predictions.
-#>      Adjusts for covariate-outcome associations without propensity
-#>      reweighting.
+#>      Isolates the effect of outcome regression adjustment.
 #> 
-#>    Doubly-Robust (AIPW)
-#>      W.hat and Y.hat both estimated from boosted RFs. Consistent if
-#>      either nuisance model is correctly specified.
+#>    AIPW (doubly robust)
+#>      Both nuisance models estimated. Consistent if either is correct.
 #> 
 plot(result)
 

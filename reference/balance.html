@@ -220,9 +220,9 @@ permutations in the balance test are restricted to within each block.</p></dd>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Treatment Effect Estimates</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ------------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   DiM (unadjusted):              0.5078  (SE:  0.0917)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Propensity-Adjusted:           0.5114  (SE:  0.0922)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Outcome-Adjusted:              0.5257  (SE:  0.0890)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Doubly-Robust (AIPW):          0.5271  (SE:  0.0895)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   AIPW (propensity only):        0.5114  (SE:  0.0922)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   AIPW (outcome only):           0.5257  (SE:  0.0890)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   AIPW (doubly robust):          0.5271  (SE:  0.0895)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Use summary() for full details, plot() to visualize.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -275,26 +275,38 @@ permutations in the balance test are restricted to within each block.</p></dd>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    Estimator                    Estimate        SE                95% CI</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    ---------------------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    DiM (unadjusted)               0.5078    0.0917  [  0.3280,   0.6875]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Propensity-Adjusted            0.5114    0.0922  [  0.3307,   0.6921]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Outcome-Adjusted               0.5257    0.0890  [  0.3514,   0.7001]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Doubly-Robust (AIPW)           0.5271    0.0895  [  0.3518,   0.7025]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (propensity only)         0.5114    0.0922  [  0.3307,   0.6921]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (outcome only)            0.5257    0.0890  [  0.3514,   0.7001]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (doubly robust)           0.5271    0.0895  [  0.3518,   0.7025]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5. ESTIMATOR DIVERGENCE TESTS</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ------------------------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    Comparison                    Difference   SE(diff)   z-stat   p-value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    ----------------------------------------------------------------------</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs Propensity-Adjusted       -0.0036     0.0037   -0.972    0.3312  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs Outcome-Adjusted          -0.0180     0.0153   -1.176    0.2395  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs Doubly-Robust             -0.0194     0.0157   -1.238    0.2159  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Prop.-Adj. vs Doubly-Robust      -0.0157     0.0155   -1.017    0.3090  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs AIPW (propensity)         -0.0036     0.0056   -0.651    0.5147  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs AIPW (outcome)            -0.0180     0.0158   -1.135    0.2563  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    DiM vs AIPW (doubly robust)      -0.0194     0.0162   -1.196    0.2315  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (prop.) vs AIPW (dr)        -0.0157     0.0155   -1.017    0.3090  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    All four estimators agree closely, indicating the ATE estimate is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    robust to the choice of nuisance model specification.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6. ESTIMATOR GUIDE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ------------------------------------------------------------------------</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Nuisance models (propensity and outcome) are fit using honest, tuned</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    boosted regression forests (grf::boosted_regression_forest;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    honesty = TRUE, tune.parameters = "all"); all predictions are</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    out-of-bag. Treatment effects are estimated via grf::causal_forest</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    (2,000 trees) and grf::average_treatment_effect (target = "all").</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    All adjusted estimators use grf::causal_forest's AIPW framework.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    They differ in which nuisance models (propensity and/or outcome)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    are estimated vs. held at uninformative constants.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    We present four ATE estimates as a robustness decomposition.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    Agreement across estimators signals robustness to modeling choices.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    Divergence reveals which adjustment component (propensity vs.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    outcome) most affects the estimate and warrants investigation.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    Nuisance models are fit using honest, tuned boosted regression</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    forests (grf::boosted_regression_forest; honesty = TRUE,</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    tune.parameters = "all"); all predictions are out-of-bag.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    Treatment effects are estimated via grf::causal_forest (2,000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    trees) and grf::average_treatment_effect (target = "all").</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    Standard errors use the infinitesimal jackknife (IJ) influence</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    function. DiM SEs use Neyman's separate-variance (Welch) formula.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    All confidence intervals use a normal approximation.</span>
@@ -302,18 +314,16 @@ permutations in the balance test are restricted to within each block.</p></dd>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    DiM (unadjusted)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      E[Y|W=1] - E[Y|W=0]. No covariate adjustment.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Propensity-Adjusted</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      W.hat = boosted-RF propensity scores; Y.hat = mean(Y) (constant).</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      Corrects for covariate imbalance without outcome modeling.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (propensity only)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      W.hat = boosted-RF propensity; Y.hat = mean(Y) (constant).</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      Isolates the effect of propensity score reweighting.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Outcome-Adjusted</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (outcome only)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      W.hat = mean(W) (constant); Y.hat = boosted-RF outcome predictions.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      Adjusts for covariate-outcome associations without propensity</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      reweighting.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      Isolates the effect of outcome regression adjustment.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Doubly-Robust (AIPW)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      W.hat and Y.hat both estimated from boosted RFs. Consistent if</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      either nuisance model is correctly specified.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    AIPW (doubly robust)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      Both nuisance models estimated. Consistent if either is correct.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="balance-1.png" alt="" width="700" height="433"></span>

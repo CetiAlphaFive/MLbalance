@@ -1,4 +1,4 @@
-# Machine Learning Balance [![](reference/figures/mlbalance_sticker.png)](https://github.com/CetiAlphaFive/MLbalance/blob/master/man/figures/mlbalance_sticker.png)
+# Machine Learning Balance [![](reference/figures/mlbalance_sticker.png)](https://github.com/MLCause/MLbalance/blob/master/man/figures/mlbalance_sticker.png)
 
 [![R-CMD-check](https://github.com/CetiAlphaFive/MLbalance/actions/workflows/check-standard.yaml/badge.svg)](https://github.com/CetiAlphaFive/MLbalance/actions/workflows/check-standard.yaml)
 [![Codecov](https://codecov.io/gh/CetiAlphaFive/MLbalance/graph/badge.svg)](https://codecov.io/gh/CetiAlphaFive/MLbalance)
