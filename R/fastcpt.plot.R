@@ -27,8 +27,18 @@ plot.fastcpt <- function(x, breaks = 25, ...){
   test_pass <- x$pval > alpha
   color_select <- ifelse(test_pass, "green", "red")
   subtitle_text <- ifelse(test_pass, "Pass", "Fail")
-  testval <- x$teststat
-  df <- data.frame(null = x$nulldist)
+
+  # Handle multi-classifier: use ensemble (last column/element)
+  if (is.matrix(x$nulldist)) {
+    null_vec <- x$nulldist[, ncol(x$nulldist)]
+    testval  <- x$teststat[length(x$teststat)]
+    subtitle_text <- paste0(subtitle_text, " (ensemble)")
+  } else {
+    null_vec <- x$nulldist
+    testval  <- x$teststat
+  }
+
+  df <- data.frame(null = null_vec)
 
   # Build dynamic x-axis label from metric name
   metric_labels <- c("probability" = "Probability", "rate" = "Classification Rate",
@@ -38,8 +48,8 @@ plot.fastcpt <- function(x, breaks = 25, ...){
     paste("Test Statistic -", metric_labels[mn]) else "Test Statistic"
 
   # dynamic x-axis limits (rounded to nearest 0.1)
-  x_min <- floor(min(x$nulldist) * 10) / 10
-  x_max <- ceiling(max(c(x$nulldist, testval)) * 10) / 10
+  x_min <- floor(min(null_vec) * 10) / 10
+  x_max <- ceiling(max(c(null_vec, testval)) * 10) / 10
 
   # the Gagnon plot
   ggplot2::ggplot(df, ggplot2::aes(x = null)) +
