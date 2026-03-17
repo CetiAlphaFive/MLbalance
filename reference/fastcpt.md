@@ -84,15 +84,14 @@ print(x, ...)
 
 - metric:
 
-  Which test statistic to use. Can be "rate" (classification accuracy
-  rate), "mse", or "probability". The default value ("probability") is
-  recommended.
+  Which test statistic to use. Can be "rate", "mse", "logscore", or
+  "probability" (default, recommended).
 
 - ensemble.metric:
 
   Which test statistic to use for an ensemble classifier composed of all
-  of the individual classifiers. Can be "vote", "mean.mse", or
-  "mean.prob". The default value ("mean.prob") is recommended.
+  of the individual classifiers. Can be "vote", "mean.mse", "mean.log",
+  or "mean.prob" (default, recommended).
 
 - paired:
 
@@ -223,6 +222,30 @@ A list containing:
 - alpha:
 
   The significance level used for pass/fail determination.
+
+- class.methods:
+
+  Character vector of classification methods used.
+
+- metric:
+
+  The metric function used.
+
+- metric_name:
+
+  Character name of the metric.
+
+- perm.N:
+
+  Number of permutations.
+
+- clusters:
+
+  Cluster identifiers (if provided, otherwise `NULL`).
+
+- blocks:
+
+  Block identifiers (if provided, otherwise `NULL`).
 
 ## Examples
 

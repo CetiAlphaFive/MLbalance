@@ -99,11 +99,11 @@ Description of cpt: Non-parametric test for equality of multivariate distributio
 
 
 <dt id="arg-metric">metric<a class="anchor" aria-label="anchor" href="#arg-metric"></a></dt>
-<dd><p>Which test statistic to use. Can be "rate" (classification accuracy rate), "mse", or "probability". The default value ("probability") is recommended.</p></dd>
+<dd><p>Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).</p></dd>
 
 
 <dt id="arg-ensemble-metric">ensemble.metric<a class="anchor" aria-label="anchor" href="#arg-ensemble-metric"></a></dt>
-<dd><p>Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", or "mean.prob". The default value ("mean.prob") is recommended.</p></dd>
+<dd><p>Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).</p></dd>
 
 
 <dt id="arg-paired">paired<a class="anchor" aria-label="anchor" href="#arg-paired"></a></dt>
@@ -196,6 +196,24 @@ default 5), <code>alpha</code> (elastic net mixing for cv.glmnet, default 0.5).<
 
 <dt>alpha</dt>
 <dd><p>The significance level used for pass/fail determination.</p></dd>
+
+<dt>class.methods</dt>
+<dd><p>Character vector of classification methods used.</p></dd>
+
+<dt>metric</dt>
+<dd><p>The metric function used.</p></dd>
+
+<dt>metric_name</dt>
+<dd><p>Character name of the metric.</p></dd>
+
+<dt>perm.N</dt>
+<dd><p>Number of permutations.</p></dd>
+
+<dt>clusters</dt>
+<dd><p>Cluster identifiers (if provided, otherwise <code>NULL</code>).</p></dd>
+
+<dt>blocks</dt>
+<dd><p>Block identifiers (if provided, otherwise <code>NULL</code>).</p></dd>
 
 </dl></div>
 

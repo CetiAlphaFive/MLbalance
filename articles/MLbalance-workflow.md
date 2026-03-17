@@ -148,6 +148,22 @@ result <- balance(Y, W, X, class.method = "glmnet2",
                   perm.N = 200)
 ```
 
+### Ensemble Classifiers
+
+You can combine multiple classifiers into an ensemble for a more robust
+balance test. Pass `class.methods` through `fastcpt.args`:
+
+``` r
+# Ensemble via balance()
+result <- balance(Y, W, X,
+                  fastcpt.args = list(class.methods = c("ferns", "forest")),
+                  perm.N = 200)
+```
+
+This overrides `class.method` and produces individual p-values for each
+classifier plus an ensemble p-value. The combined p-value uses Fisher’s
+method by default.
+
 ## Interpreting Overlap Diagnostics
 
 When propensity scores are extreme (near 0 or 1), standard AIPW

@@ -110,7 +110,9 @@ estimation (and the treatment effect plot) is skipped.</p></dd>
 
 
 <dt id="arg-class-method">class.method<a class="anchor" aria-label="anchor" href="#arg-class-method"></a></dt>
-<dd><p>Classification method for balance test. Default is "ferns".</p></dd>
+<dd><p>Classification method for balance test. Can be "ferns" (default),
+"forest", or "glmnet2". To use an ensemble of classifiers, pass
+<code>fastcpt.args = list(class.methods = c("ferns", "forest"))</code>.</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
@@ -152,7 +154,9 @@ For example, <code>fastcpt.args = list(parallel = TRUE, leaveout = 0.2)</code>.
 You can also pass classifier-specific hyperparameters through this list, e.g.,
 <code>fastcpt.args = list(classifier.args = list(num.trees = 1000))</code> for ranger,
 <code>list(classifier.args = list(ferns = 1000))</code> for rFerns, or
-<code>list(classifier.args = list(nfolds = 10))</code> for cv.glmnet.</p></dd>
+<code>list(classifier.args = list(nfolds = 10))</code> for cv.glmnet.
+You can also use this to run an ensemble of classifiers:
+<code>fastcpt.args = list(class.methods = c("ferns", "forest"))</code>.</p></dd>
 
 
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
@@ -217,6 +221,42 @@ You can also pass classifier-specific hyperparameters through this list, e.g.,
 
 <dt>multiarm</dt>
 <dd><p>Logical indicating whether this is a multi-arm analysis.</p></dd>
+
+<dt>overlap_flag</dt>
+<dd><p>Logical indicating whether overlap issues were detected.</p></dd>
+
+<dt>overlap</dt>
+<dd><p>Overlap-weighted estimates (if <code>overlap_flag</code> is <code>TRUE</code>).</p></dd>
+
+<dt>n_extreme</dt>
+<dd><p>Number of observations with extreme propensity scores.</p></dd>
+
+<dt>pscores_real</dt>
+<dd><p>Propensity scores from the real treatment assignment.</p></dd>
+
+<dt>pscores_null</dt>
+<dd><p>Propensity scores from a permuted treatment assignment.</p></dd>
+
+<dt>n</dt>
+<dd><p>Number of observations.</p></dd>
+
+<dt>n_treated</dt>
+<dd><p>Number of treated units (binary case).</p></dd>
+
+<dt>n_control</dt>
+<dd><p>Number of control units (binary case).</p></dd>
+
+<dt>n_per_arm</dt>
+<dd><p>Named vector of sample sizes per arm (multi-arm case).</p></dd>
+
+<dt>clusters</dt>
+<dd><p>Cluster identifiers (if provided).</p></dd>
+
+<dt>blocks</dt>
+<dd><p>Block identifiers (if provided).</p></dd>
+
+<dt>ate_cov</dt>
+<dd><p>Covariance matrix of ATE estimates (used in divergence tests).</p></dd>
 
 </dl></div>
 

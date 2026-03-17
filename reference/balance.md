@@ -65,7 +65,9 @@ plot(x, which = "all", combined = TRUE, breaks = 25, ...)
 
 - class.method:
 
-  Classification method for balance test. Default is "ferns".
+  Classification method for balance test. Can be "ferns" (default),
+  "forest", or "glmnet2". To use an ensemble of classifiers, pass
+  `fastcpt.args = list(class.methods = c("ferns", "forest"))`.
 
 - seed:
 
@@ -113,7 +115,9 @@ plot(x, which = "all", combined = TRUE, breaks = 25, ...)
   list, e.g.,
   `fastcpt.args = list(classifier.args = list(num.trees = 1000))` for
   ranger, `list(classifier.args = list(ferns = 1000))` for rFerns, or
-  `list(classifier.args = list(nfolds = 10))` for cv.glmnet.
+  `list(classifier.args = list(nfolds = 10))` for cv.glmnet. You can
+  also use this to run an ensemble of classifiers:
+  `fastcpt.args = list(class.methods = c("ferns", "forest"))`.
 
 - x:
 
@@ -203,6 +207,54 @@ A list of class "balance" containing:
 - multiarm:
 
   Logical indicating whether this is a multi-arm analysis.
+
+- overlap_flag:
+
+  Logical indicating whether overlap issues were detected.
+
+- overlap:
+
+  Overlap-weighted estimates (if `overlap_flag` is `TRUE`).
+
+- n_extreme:
+
+  Number of observations with extreme propensity scores.
+
+- pscores_real:
+
+  Propensity scores from the real treatment assignment.
+
+- pscores_null:
+
+  Propensity scores from a permuted treatment assignment.
+
+- n:
+
+  Number of observations.
+
+- n_treated:
+
+  Number of treated units (binary case).
+
+- n_control:
+
+  Number of control units (binary case).
+
+- n_per_arm:
+
+  Named vector of sample sizes per arm (multi-arm case).
+
+- clusters:
+
+  Cluster identifiers (if provided).
+
+- blocks:
+
+  Block identifiers (if provided).
+
+- ate_cov:
+
+  Covariance matrix of ATE estimates (used in divergence tests).
 
 ## Examples
 
