@@ -34,7 +34,7 @@ pak::pak("CetiAlphaFive/MLbalance")
 
 Here is a basic example demonstrating the suite of machine learning balance tests on a simulated binary treatment DGP with multidimensional contamination of the treatment assignment.
 
-```{r example}
+```{r example, echo = FALSE, error = FALSE, warning = FALSE, message = FALSE}
 library(MLbalance)
 set.seed(1995)
 
