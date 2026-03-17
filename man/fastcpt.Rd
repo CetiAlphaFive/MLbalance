@@ -25,7 +25,8 @@ fastcpt(
   ranger.seed = 1995,
   parallel = FALSE,
   alpha = 0.05,
-  progress = TRUE
+  progress = interactive(),
+  classifier.args = list()
 )
 
 \method{plot}{fastcpt}(x, breaks = 25, ...)
@@ -59,7 +60,7 @@ fastcpt(
 
 \item{comb.methods}{Which of the classifiers to include in the combined, overall p-value. Can be any subset of the classifiers specified in \code{class.methods} in addition to "ensemble" for the ensemble classifier.}
 
-\item{comb.method}{The method for combining p-values from the individual classifiers in order to produce an overall p-value. The default ("fisher") is recommended. The other possible option is "min" which uses the minimum p-value. Note that in both cases, the combined p-value itself is not returned; rather, the combined p-value is treated as a test statistic, which is itself then subject to permutation analysis; what is returned is the resulting p-value from this analysis.}
+\item{comb.method}{The method for combining p-values from the individual classifiers in order to produce an overall p-value. The default ("fisher") is recommended. The other possible option is "min" which uses the minimum p-value. Note that in both cases, the combined p-value itself is not returned; rather, the combined p-value is treated as a test statistic, which is itself then subject to permutation analysis; what is returned is the resulting p-value from this analysis. The "fisher" option computes \code{mean(log(p))}, a monotone transformation of the classical Fisher statistic; since comparison is against a permutation null rather than chi-squared, the scaling is immaterial.}
 
 \item{R.seed}{Random seed for R's set.seed (for reproducibility).}
 
@@ -69,7 +70,14 @@ fastcpt(
 
 \item{alpha}{Significance level for pass/fail determination. Default is 0.05, which is appropriate for experimental contexts where even slight classification ability is concerning. For observational studies, a lower threshold may be more appropriate.}
 
-\item{progress}{Logical. If TRUE (default), displays a progress bar during permutation testing.}
+\item{progress}{Logical. If TRUE, displays a progress bar during permutation testing.
+Defaults to \code{interactive()}.}
+
+\item{classifier.args}{Optional named list of hyperparameters forwarded to the
+classifier training functions. Supported keys: \code{num.trees} (for ranger forest,
+default 500), \code{ferns} (number of ferns for rFerns, default 500),
+\code{depth} (fern depth for rFerns, default 5), \code{nfolds} (for cv.glmnet,
+default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5).}
 
 \item{x}{A fastcpt result object (for plot and print methods).}
 

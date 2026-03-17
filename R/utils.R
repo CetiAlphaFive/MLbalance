@@ -89,6 +89,22 @@ utils::globalVariables(character(0))
 
 #' @keywords internal
 #' @noRd
+.prepare_covariates_for_grf <- function(X) {
+  X_grf <- as.data.frame(X)
+  for (j in seq_along(X_grf)) {
+    if (is.character(X_grf[[j]])) X_grf[[j]] <- as.factor(X_grf[[j]])
+    if (is.ordered(X_grf[[j]]))   X_grf[[j]] <- as.numeric(X_grf[[j]])
+  }
+  if (any(vapply(X_grf, is.factor, logical(1)))) {
+    X_grf <- stats::model.matrix(~ . - 1, data = X_grf)
+  } else {
+    X_grf <- as.matrix(X_grf)
+  }
+  X_grf
+}
+
+#' @keywords internal
+#' @noRd
 .permute_treatment <- function(T, clusters = NULL, blocks = NULL) {
   n <- length(T)
   original_class <- class(T)

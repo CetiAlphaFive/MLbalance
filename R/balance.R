@@ -9,7 +9,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' A unified function for covariate balance assessment and treatment effect estimation.
 #' Combines a formal balance test (via classification permutation test), visual diagnostics
 #' (propensity score distributions), and treatment effect estimates using both difference-in-means
-#' and augmented inverse propensity weighting (AIPW).
+#' and AIPW (augmented inverse propensity weighting).
 #'
 #' Supports both binary and multi-arm treatments. For multi-arm treatments, pairwise comparisons
 #' are made between each treatment arm and the control group.
@@ -30,14 +30,25 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #'   within each cluster.
 #' @param blocks Optional vector of block identifiers (same length as \code{W}). When provided,
 #'   permutations in the balance test are restricted to within each block.
-#' @param fastcpt.args A named list of additional arguments to pass to \code{\link{fastcpt}}. For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.
+#' @param num.trees Number of trees used in \code{grf::causal_forest()} for treatment
+#'   effect estimation. Default is 2000.
+#' @param overlap.threshold Numeric vector of length 2 giving the lower and upper propensity
+#'   score thresholds for flagging overlap issues. Default is \code{c(0.05, 0.95)}.
+#'   When any propensity scores fall outside these bounds, overlap-weighted estimates
+#'   are automatically computed.
+#' @param fastcpt.args A named list of additional arguments to pass to \code{\link{fastcpt}}.
+#'   For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.
+#'   You can also pass classifier-specific hyperparameters through this list, e.g.,
+#'   \code{fastcpt.args = list(classifier.args = list(num.trees = 1000))} for ranger,
+#'   \code{list(classifier.args = list(ferns = 1000))} for rFerns, or
+#'   \code{list(classifier.args = list(nfolds = 10))} for cv.glmnet.
 #'
 #' @return A list of class "balance" containing:
 #' \item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
 #' \item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided). For multi-arm, a named list.}
 #' \item{ipw}{IPW estimate using propensity scores from the boosted regression forest, with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
-#' \item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
-#' \item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+#' \item{aipw}{AIPW (doubly robust) estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+#' \item{oadj}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 #' \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
 #' \item{alpha}{The significance level used.}
 #' \item{cf}{The fitted causal_forest object(s) for advanced users (only if \code{Y} is provided). For multi-arm, a named list.}
@@ -70,7 +81,9 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #'
 #' @export
 balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = "ferns", seed = 1995,
-                    control = NULL, clusters = NULL, blocks = NULL, fastcpt.args = list()) {
+                    control = NULL, clusters = NULL, blocks = NULL,
+                    num.trees = 2000, overlap.threshold = c(0.05, 0.95),
+                    fastcpt.args = list()) {
 
   # Save and restore RNG state
   old_seed <- .save_rng_state()
@@ -113,7 +126,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
   if (is.null(control)) {
     control <- all_levels[1]
-    if (n_arms > 2) {
+    if (n_arms > 2 && getOption("MLbalance.verbose", TRUE)) {
       message(sprintf("Multi-arm treatment detected (%d arms). Using '%s' as control (first factor level).\n  To specify a different control, use the 'control' argument.",
                       n_arms, control))
     }
@@ -125,7 +138,9 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     # Reorder factor levels so control is first
     W_factor <- factor(W, levels = c(control, setdiff(all_levels, control)))
     all_levels <- levels(W_factor)
-    message(sprintf("Using '%s' as control group.", control))
+    if (getOption("MLbalance.verbose", TRUE)) {
+      message(sprintf("Using '%s' as control group.", control))
+    }
   }
 
   # Treatment arms (excluding control)
@@ -136,21 +151,10 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   X_df <- as.data.frame(X)
 
   # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
-  X_grf <- X_df
-  for (col in names(X_grf)) {
-    if (is.character(X_grf[[col]])) X_grf[[col]] <- as.factor(X_grf[[col]])
-    if (is.ordered(X_grf[[col]]))   X_grf[[col]] <- as.numeric(X_grf[[col]])
-  }
-  has_factors <- any(sapply(X_grf, is.factor))
-  if (has_factors) {
-    X_matrix <- stats::model.matrix(~ . - 1, data = X_grf)
-    n_cols <- ncol(X_matrix)
-    if (n_cols > ncol(X_df) * 5) {
-      warning("Factor expansion created many columns. Consider collapsing high-cardinality factors.",
-              call. = FALSE)
-    }
-  } else {
-    X_matrix <- as.matrix(X_grf)
+  X_matrix <- .prepare_covariates_for_grf(X_df)
+  if (ncol(X_matrix) > ncol(X_df) * 5) {
+    warning("Factor expansion created many columns. Consider collapsing high-cardinality factors.",
+            call. = FALSE)
   }
 
   # Set seed
@@ -164,7 +168,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   dim_results <- list()
   ipw_results <- list()
   aipw_results <- list()
-  aipw_const_results <- list()
+  oadj_results <- list()
   cf_list <- list()
   ate_cov_list <- list()
   overlap_flag_list <- list()
@@ -269,7 +273,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
     # Detect extreme propensity scores
     ps_real <- pscores_real_list[[arm_name]]
-    n_extreme <- sum(ps_real < 0.05) + sum(ps_real > 0.95)
+    n_extreme <- sum(ps_real < overlap.threshold[1]) + sum(ps_real > overlap.threshold[2])
     has_overlap_issue <- n_extreme > 0
     overlap_flag_list[[arm_name]] <- has_overlap_issue
     n_extreme_list[[arm_name]] <- n_extreme
@@ -308,7 +312,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       )
       Y_hat <- as.numeric(outcome_forest$predictions)
 
-      # AIPW (propensity only): boosted-RF propensity, flat outcome model
+      # IPW: boosted-RF propensity, flat outcome model
       cf_ipw <- grf::causal_forest(
         X     = X_matrix_sub,
         Y     = Y_sub,
@@ -316,7 +320,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = e_hat,
         Y.hat = rep(mean(Y_sub), length(Y_sub)),
         seed  = seed,
-        num.trees = 2000,
+        num.trees = num.trees,
         clusters = clusters_sub
       )
       ate_ipw <- grf::average_treatment_effect(cf_ipw, target.sample = "all")
@@ -326,7 +330,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         ci       = .make_ci(ate_ipw["estimate"], ate_ipw["std.err"])
       )
 
-      # AIPW (outcome only): constant propensity, boosted-RF outcome model
+      # Outcome-adjusted: constant propensity, boosted-RF outcome model
       cf_const <- grf::causal_forest(
         X     = X_matrix_sub,
         Y     = Y_sub,
@@ -334,17 +338,17 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = rep(mean(W_binary), length(W_binary)),
         Y.hat = Y_hat,
         seed  = seed,
-        num.trees = 2000,
+        num.trees = num.trees,
         clusters = clusters_sub
       )
       ate_const <- grf::average_treatment_effect(cf_const, target.sample = "all")
-      aipw_const_results[[arm_name]] <- list(
+      oadj_results[[arm_name]] <- list(
         estimate = ate_const["estimate"],
         std.err  = ate_const["std.err"],
         ci       = .make_ci(ate_const["estimate"], ate_const["std.err"])
       )
 
-      # AIPW (doubly robust): boosted-RF propensity + boosted-RF outcome model
+      # AIPW: boosted-RF propensity + boosted-RF outcome model
       cf <- grf::causal_forest(
         X     = X_matrix_sub,
         Y     = Y_sub,
@@ -352,7 +356,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         W.hat = e_hat,
         Y.hat = Y_hat,
         seed  = seed,
-        num.trees = 2000,
+        num.trees = num.trees,
         clusters = clusters_sub
       )
       cf_list[[arm_name]] <- cf
@@ -368,10 +372,14 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       scores_oadj <- as.numeric(grf::get_scores(cf_const))
       scores_aipw <- as.numeric(grf::get_scores(cf))
 
-      # DiM influence function
-      p_hat <- mean(W_binary)
-      scores_dim <- W_binary / p_hat * (Y_sub - mean(Y1)) -
-                    (1 - W_binary) / (1 - p_hat) * (Y_sub - mean(Y0))
+      # DiM influence function (block-aware propensities when blocking)
+      if (!is.null(blocks_sub)) {
+        p_hat_vec <- stats::ave(W_binary, blocks_sub, FUN = mean)
+      } else {
+        p_hat_vec <- rep(mean(W_binary), length(W_binary))
+      }
+      scores_dim <- W_binary / p_hat_vec * (Y_sub - mean(Y1)) -
+                    (1 - W_binary) / (1 - p_hat_vec) * (Y_sub - mean(Y0))
 
       # 4x4 covariance matrix of ATE estimators
       score_mat <- cbind(dim = scores_dim, ipw = scores_ipw,
@@ -385,9 +393,6 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
         ate_cov_list[[arm_name]] <- stats::cov(score_mat) / n_sub
       }
 
-      # Use estimatr's design-based DiM variance for the diagonal entry
-      ate_cov_list[[arm_name]][1, 1] <- dim_se^2
-
       # Overlap-weighted estimates when extreme propensity scores detected
       if (has_overlap_issue) {
         ate_ipw_ow  <- grf::average_treatment_effect(cf_ipw,   target.sample = "overlap")
@@ -399,7 +404,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
             std.err  = ate_ipw_ow["std.err"],
             ci       = .make_ci(ate_ipw_ow["estimate"], ate_ipw_ow["std.err"])
           ),
-          aipw_const = list(
+          oadj = list(
             estimate = ate_oadj_ow["estimate"],
             std.err  = ate_oadj_ow["std.err"],
             ci       = .make_ci(ate_oadj_ow["estimate"], ate_oadj_ow["std.err"])
@@ -422,7 +427,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       dim = if (length(dim_results) > 0) dim_results[[1]] else NULL,
       ipw = if (length(ipw_results) > 0) ipw_results[[1]] else NULL,
       aipw = if (length(aipw_results) > 0) aipw_results[[1]] else NULL,
-      aipw_const = if (length(aipw_const_results) > 0) aipw_const_results[[1]] else NULL,
+      oadj = if (length(oadj_results) > 0) oadj_results[[1]] else NULL,
       passed = unname(passed_vec[1]),
       alpha = alpha,
       cf = if (length(cf_list) > 0) cf_list[[1]] else NULL,
@@ -448,7 +453,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       dim = if (length(dim_results) > 0) dim_results else NULL,
       ipw = if (length(ipw_results) > 0) ipw_results else NULL,
       aipw = if (length(aipw_results) > 0) aipw_results else NULL,
-      aipw_const = if (length(aipw_const_results) > 0) aipw_const_results else NULL,
+      oadj = if (length(oadj_results) > 0) oadj_results else NULL,
       passed = passed_joint,
       alpha = alpha,
       cf = if (length(cf_list) > 0) cf_list else NULL,
@@ -494,10 +499,10 @@ print.balance <- function(x, ...) {
     if (!is.null(x$dim)) {
       cat("\nTreatment Effect Estimates\n")
       cat(LINE)
-      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "DiM (unadjusted):", x$dim$estimate, x$dim$std.err))
-      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "AIPW (propensity only):", x$ipw$estimate, x$ipw$std.err))
-      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "AIPW (outcome only):", x$aipw_const$estimate, x$aipw_const$std.err))
-      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "AIPW (doubly robust):", x$aipw$estimate, x$aipw$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "DiM:", x$dim$estimate, x$dim$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "IPW:", x$ipw$estimate, x$ipw$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "Outcome-adjusted:", x$oadj$estimate, x$oadj$std.err))
+      cat(sprintf("  %-28s %8.4f  (SE: %7.4f)\n", "AIPW:", x$aipw$estimate, x$aipw$std.err))
       if (isTRUE(x$overlap_flag)) {
         cat(sprintf("\n  OVERLAP WARNING: %d observations have extreme propensity scores.\n", x$n_extreme))
       }
@@ -513,7 +518,7 @@ print.balance <- function(x, ...) {
     if (has_effects) {
       for (arm in x$arms) {
         cat(sprintf("  [%s vs %s]\n", arm, x$control))
-        cat(sprintf("    DiM: %8.4f   AIPW(prop): %8.4f   AIPW(dr): %8.4f\n",
+        cat(sprintf("    DiM: %8.4f   IPW: %8.4f   AIPW: %8.4f\n",
                     x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw[[arm]]$estimate))
         if (isTRUE(x$overlap_flag[[arm]])) {
           cat(sprintf("    OVERLAP WARNING: %d extreme propensity scores\n", x$n_extreme[[arm]]))
@@ -572,17 +577,17 @@ summary.balance <- function(object, ...) {
   # Format: label (26), estimate (9), SE (8), CI (20) = 66 chars after "   "
   EST_ROW <- "   %-26s  %9.4f  %8.4f  [%8.4f, %8.4f]\n"
 
-  print_estimates_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res) {
-    cat(sprintf(EST_ROW, "DiM (unadjusted)",
+  print_estimates_rows <- function(dim_res, ipw_res, aipw_res, oadj_res) {
+    cat(sprintf(EST_ROW, "DiM",
                 dim_res$estimate,        dim_res$std.err,
                 dim_res$ci[1],           dim_res$ci[2]))
-    cat(sprintf(EST_ROW, "AIPW (propensity only)",
+    cat(sprintf(EST_ROW, "IPW",
                 ipw_res$estimate,        ipw_res$std.err,
                 ipw_res$ci[1],           ipw_res$ci[2]))
-    cat(sprintf(EST_ROW, "AIPW (outcome only)",
-                aipw_const_res$estimate, aipw_const_res$std.err,
-                aipw_const_res$ci[1],    aipw_const_res$ci[2]))
-    cat(sprintf(EST_ROW, "AIPW (doubly robust)",
+    cat(sprintf(EST_ROW, "Outcome-adjusted",
+                oadj_res$estimate, oadj_res$std.err,
+                oadj_res$ci[1],    oadj_res$ci[2]))
+    cat(sprintf(EST_ROW, "AIPW",
                 aipw_res$estimate,       aipw_res$std.err,
                 aipw_res$ci[1],          aipw_res$ci[2]))
   }
@@ -593,18 +598,18 @@ summary.balance <- function(object, ...) {
   DIV_ROW <- "   %-28s  %10.4f  %9.4f  %7.3f  %8.4f%s\n"
 
   # Estimator index map for covariance matrix: dim=1, ipw=2, oadj=3, aipw=4
-  print_divergence_rows <- function(dim_res, ipw_res, aipw_res, aipw_const_res, alpha, Sigma) {
+  print_divergence_rows <- function(dim_res, ipw_res, aipw_res, oadj_res, alpha, Sigma) {
     pairs <- list(
-      list(key = "dim_ipw", label = "DiM vs AIPW (propensity)",
+      list(key = "dim_ipw", label = "DiM vs IPW",
            e1 = dim_res$estimate,        e2 = ipw_res$estimate,
            idx1 = 1L, idx2 = 2L),
-      list(key = "dim_oa",  label = "DiM vs AIPW (outcome)",
-           e1 = dim_res$estimate,        e2 = aipw_const_res$estimate,
+      list(key = "dim_oa",  label = "DiM vs Outcome-adj.",
+           e1 = dim_res$estimate,        e2 = oadj_res$estimate,
            idx1 = 1L, idx2 = 3L),
-      list(key = "dim_dr",  label = "DiM vs AIPW (doubly robust)",
+      list(key = "dim_dr",  label = "DiM vs AIPW",
            e1 = dim_res$estimate,        e2 = aipw_res$estimate,
            idx1 = 1L, idx2 = 4L),
-      list(key = "ipw_dr",  label = "AIPW (prop.) vs AIPW (dr)",
+      list(key = "ipw_dr",  label = "IPW vs AIPW",
            e1 = ipw_res$estimate,        e2 = aipw_res$estimate,
            idx1 = 2L, idx2 = 4L)
     )
@@ -638,40 +643,40 @@ summary.balance <- function(object, ...) {
 
     cat("   Significant divergences:\n\n")
 
-    # a) DiM vs AIPW (propensity only)
+    # a) DiM vs IPW
     if (r$dim_ipw$sig) {
       cat(sprintf(paste0(
-        "   DiM vs AIPW (propensity only): The propensity-only AIPW differs from\n",
-        "   the unadjusted DiM by %.4f units (z = %.3f, p = %.4f), indicating\n",
-        "   that propensity reweighting accounts for this difference.\n\n"
+        "   DiM vs IPW: The IPW estimate differs from the unadjusted DiM\n",
+        "   by %.4f units (z = %.3f, p = %.4f), indicating that propensity\n",
+        "   reweighting accounts for this difference.\n\n"
       ), abs(r$dim_ipw$diff), r$dim_ipw$z, r$dim_ipw$pval))
     }
 
-    # b) DiM vs AIPW (outcome only)
+    # b) DiM vs Outcome-adjusted
     if (r$dim_oa$sig) {
       cat(sprintf(paste0(
-        "   DiM vs AIPW (outcome only): The outcome-only AIPW differs from\n",
+        "   DiM vs Outcome-adjusted: The outcome-adjusted estimate differs from\n",
         "   the unadjusted DiM by %.4f units (z = %.3f, p = %.4f), indicating\n",
         "   that outcome regression adjustment accounts for this difference.\n\n"
       ), abs(r$dim_oa$diff), r$dim_oa$z, r$dim_oa$pval))
     }
 
-    # c) DiM vs AIPW (doubly robust)
+    # c) DiM vs AIPW
     if (r$dim_dr$sig) {
       cat(sprintf(paste0(
-        "   DiM vs AIPW (doubly robust): The doubly robust AIPW differs from\n",
-        "   the unadjusted DiM by %.4f units (z = %.3f, p = %.4f), reflecting\n",
-        "   the combined effect of propensity and outcome adjustment.\n\n"
+        "   DiM vs AIPW: The AIPW estimate differs from the unadjusted DiM\n",
+        "   by %.4f units (z = %.3f, p = %.4f), reflecting the combined\n",
+        "   effect of propensity and outcome adjustment.\n\n"
       ), abs(r$dim_dr$diff), r$dim_dr$z, r$dim_dr$pval))
     }
 
-    # d) AIPW (propensity) vs AIPW (doubly robust)
+    # d) IPW vs AIPW
     if (r$ipw_dr$sig) {
       cat(sprintf(paste0(
-        "   AIPW (propensity) vs AIPW (doubly robust): Adding outcome regression\n",
-        "   to propensity reweighting changes the estimate by %.4f units\n",
-        "   (z = %.3f, p = %.4f), indicating that outcome modeling captures\n",
-        "   additional covariate-outcome associations beyond reweighting.\n\n"
+        "   IPW vs AIPW: Adding outcome regression to propensity reweighting\n",
+        "   changes the estimate by %.4f units (z = %.3f, p = %.4f),\n",
+        "   indicating that outcome modeling captures additional\n",
+        "   covariate-outcome associations beyond reweighting.\n\n"
       ), abs(r$ipw_dr$diff), r$ipw_dr$z, r$ipw_dr$pval))
     }
   }
@@ -817,11 +822,11 @@ summary.balance <- function(object, ...) {
     cat("   (< 0.05 or > 0.95). Overlap-weighted estimates down-weight these:\n\n")
     cat(EST_HEAD)
     cat(EST_SEP)
-    cat(sprintf(OW_ROW, "AIPW (propensity, OW)",
+    cat(sprintf(OW_ROW, "IPW (OW)",
                 ov$ipw$estimate, ov$ipw$std.err, ov$ipw$ci[1], ov$ipw$ci[2]))
-    cat(sprintf(OW_ROW, "AIPW (outcome, OW)",
-                ov$aipw_const$estimate, ov$aipw_const$std.err, ov$aipw_const$ci[1], ov$aipw_const$ci[2]))
-    cat(sprintf(OW_ROW, "AIPW (doubly robust, OW)",
+    cat(sprintf(OW_ROW, "Outcome-adj. (OW)",
+                ov$oadj$estimate, ov$oadj$std.err, ov$oadj$ci[1], ov$oadj$ci[2]))
+    cat(sprintf(OW_ROW, "AIPW (OW)",
                 ov$aipw$estimate, ov$aipw$std.err, ov$aipw$ci[1], ov$aipw$ci[2]))
     cat("\n")
   }
@@ -832,7 +837,7 @@ summary.balance <- function(object, ...) {
     cat(LINE)
     cat(EST_HEAD)
     cat(EST_SEP)
-    print_estimates_rows(object$dim, object$ipw, object$aipw, object$aipw_const)
+    print_estimates_rows(object$dim, object$ipw, object$aipw, object$oadj)
     if (isTRUE(object$overlap_flag) && !is.null(object$overlap)) {
       print_overlap_block(object$n_extreme, object$overlap)
     }
@@ -843,7 +848,7 @@ summary.balance <- function(object, ...) {
     cat(LINE)
     cat(DIV_HEAD)
     cat(DIV_SEP)
-    print_divergence_rows(object$dim, object$ipw, object$aipw, object$aipw_const, object$alpha, object$ate_cov)
+    print_divergence_rows(object$dim, object$ipw, object$aipw, object$oadj, object$alpha, object$ate_cov)
 
     next_sec <- next_sec + 2L
 
@@ -856,7 +861,7 @@ summary.balance <- function(object, ...) {
     for (arm in object$arms) {
       cat(sprintf("   --- %s vs %s ---\n", arm, object$control))
       print_estimates_rows(object$dim[[arm]], object$ipw[[arm]],
-                           object$aipw[[arm]], object$aipw_const[[arm]])
+                           object$aipw[[arm]], object$oadj[[arm]])
       if (isTRUE(object$overlap_flag[[arm]]) && !is.null(object$overlap[[arm]])) {
         print_overlap_block(object$n_extreme[[arm]], object$overlap[[arm]])
       }
@@ -871,7 +876,7 @@ summary.balance <- function(object, ...) {
       cat(DIV_HEAD)
       cat(DIV_SEP)
       print_divergence_rows(object$dim[[arm]], object$ipw[[arm]],
-                            object$aipw[[arm]], object$aipw_const[[arm]], object$alpha,
+                            object$aipw[[arm]], object$oadj[[arm]], object$alpha,
                             object$ate_cov[[arm]])
     }
 
@@ -893,8 +898,8 @@ summary.balance <- function(object, ...) {
   cat("   Nuisance models are fit using honest, tuned boosted regression\n")
   cat("   forests (grf::boosted_regression_forest; honesty = TRUE,\n")
   cat("   tune.parameters = \"all\"); all predictions are out-of-bag.\n")
-  cat("   Treatment effects are estimated via grf::causal_forest (2,000\n")
-  cat("   trees) and grf::average_treatment_effect (target = \"all\").\n")
+  cat("   Treatment effects are estimated via grf::causal_forest\n")
+  cat("   and grf::average_treatment_effect (target = \"all\").\n")
   cat("   Standard errors use the infinitesimal jackknife (IJ) influence\n")
   cat("   function. DiM SEs use Neyman's separate-variance (Welch) formula.\n")
   if (!is.null(object$clusters)) {
@@ -904,18 +909,18 @@ summary.balance <- function(object, ...) {
   }
   cat("   All confidence intervals use a normal approximation.\n")
   cat("\n")
-  cat("   DiM (unadjusted)\n")
+  cat("   DiM (difference-in-means)\n")
   cat("     E[Y|W=1] - E[Y|W=0]. No covariate adjustment.\n")
   cat("\n")
-  cat("   AIPW (propensity only)\n")
+  cat("   IPW (inverse propensity weighted)\n")
   cat("     W.hat = boosted-RF propensity; Y.hat = mean(Y) (constant).\n")
   cat("     Isolates the effect of propensity score reweighting.\n")
   cat("\n")
-  cat("   AIPW (outcome only)\n")
+  cat("   Outcome-adjusted (regression adjustment)\n")
   cat("     W.hat = mean(W) (constant); Y.hat = boosted-RF outcome predictions.\n")
   cat("     Isolates the effect of outcome regression adjustment.\n")
   cat("\n")
-  cat("   AIPW (doubly robust)\n")
+  cat("   AIPW (augmented IPW / doubly robust)\n")
   cat("     Both nuisance models estimated. Consistent if either is correct.\n")
   cat("\n")
 
@@ -992,7 +997,7 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     )
   }
 
-  has_effects <- !is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$aipw_const)
+  has_effects <- !is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$oadj)
 
   if (length(which) == 1 && which == "all") {
     which <- if (has_effects) c("pscores", "null_dist", "effects") else c("pscores", "null_dist")
@@ -1089,27 +1094,27 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       # Colors for estimators
       col_dim        <- "#506D27"
       col_ipw        <- "#F9E79F"
-      col_aipw_const <- "#B2C0DA"
+      col_oadj       <- "#B2C0DA"
       col_aipw       <- "#9C4643"
 
       has_ow <- isTRUE(x$overlap_flag) && !is.null(x$overlap)
 
       # Labels matching summary output
-      est_labels <- c("DiM\n(unadjusted)", "AIPW\n(propensity only)", "AIPW\n(outcome only)", "AIPW\n(doubly robust)")
+      est_labels <- c("DiM", "IPW", "Outcome-\nadjusted", "AIPW")
 
       # Build data frame with weight type for shape mapping
       effect_df <- data.frame(
         estimator = factor(est_labels, levels = est_labels),
-        estimate  = c(x$dim$estimate, x$ipw$estimate, x$aipw_const$estimate, x$aipw$estimate),
-        se        = c(x$dim$std.err, x$ipw$std.err, x$aipw_const$std.err, x$aipw$std.err),
+        estimate  = c(x$dim$estimate, x$ipw$estimate, x$oadj$estimate, x$aipw$estimate),
+        se        = c(x$dim$std.err, x$ipw$std.err, x$oadj$std.err, x$aipw$std.err),
         weight    = "ATE"
       )
 
       if (has_ow) {
         ow_df <- data.frame(
           estimator = factor(est_labels[2:4], levels = est_labels),
-          estimate  = c(x$overlap$ipw$estimate, x$overlap$aipw_const$estimate, x$overlap$aipw$estimate),
-          se        = c(x$overlap$ipw$std.err, x$overlap$aipw_const$std.err, x$overlap$aipw$std.err),
+          estimate  = c(x$overlap$ipw$estimate, x$overlap$oadj$estimate, x$overlap$aipw$estimate),
+          se        = c(x$overlap$ipw$std.err, x$overlap$oadj$std.err, x$overlap$aipw$std.err),
           weight    = "ATO"
         )
         effect_df <- rbind(effect_df, ow_df)
@@ -1139,8 +1144,8 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           interval_alpha = 0.8,
           position = if (has_ow) ggplot2::position_dodge(width = 0.5) else "identity"
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
-        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_oadj, col_aipw), guide = "none") +
+        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_oadj, col_aipw), guide = "none") +
         ggplot2::guides(color = "none", fill = "none") +
         g_theme() +
         ggplot2::labs(
@@ -1274,21 +1279,21 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
       # Colors for estimators
       col_dim        <- "#506D27"
       col_ipw        <- "#F9E79F"
-      col_aipw_const <- "#B2C0DA"
+      col_oadj       <- "#B2C0DA"
       col_aipw       <- "#9C4643"
 
       any_overlap <- any(vapply(x$arms, function(arm) isTRUE(x$overlap_flag[[arm]]), logical(1L)))
 
       # Labels matching summary output
-      est_labels <- c("DiM\n(unadjusted)", "AIPW\n(propensity only)", "AIPW\n(outcome only)", "AIPW\n(doubly robust)")
+      est_labels <- c("DiM", "IPW", "Outcome-\nadjusted", "AIPW")
 
       # Build combined data frame for all arms with weight type
       effect_df_list <- lapply(x$arms, function(arm) {
         base_df <- data.frame(
           arm       = sprintf("%s vs %s", arm, x$control),
           estimator = factor(est_labels, levels = est_labels),
-          estimate  = c(x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$aipw_const[[arm]]$estimate, x$aipw[[arm]]$estimate),
-          se        = c(x$dim[[arm]]$std.err, x$ipw[[arm]]$std.err, x$aipw_const[[arm]]$std.err, x$aipw[[arm]]$std.err),
+          estimate  = c(x$dim[[arm]]$estimate, x$ipw[[arm]]$estimate, x$oadj[[arm]]$estimate, x$aipw[[arm]]$estimate),
+          se        = c(x$dim[[arm]]$std.err, x$ipw[[arm]]$std.err, x$oadj[[arm]]$std.err, x$aipw[[arm]]$std.err),
           weight    = "ATE"
         )
         if (isTRUE(x$overlap_flag[[arm]]) && !is.null(x$overlap) && !is.null(x$overlap[[arm]])) {
@@ -1296,8 +1301,8 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           ow_df <- data.frame(
             arm       = sprintf("%s vs %s", arm, x$control),
             estimator = factor(est_labels[2:4], levels = est_labels),
-            estimate  = c(ow$ipw$estimate, ow$aipw_const$estimate, ow$aipw$estimate),
-            se        = c(ow$ipw$std.err, ow$aipw_const$std.err, ow$aipw$std.err),
+            estimate  = c(ow$ipw$estimate, ow$oadj$estimate, ow$aipw$estimate),
+            se        = c(ow$ipw$std.err, ow$oadj$std.err, ow$aipw$std.err),
             weight    = "ATO"
           )
           base_df <- rbind(base_df, ow_df)
@@ -1331,8 +1336,8 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
           interval_alpha = 0.8,
           position = if (any_overlap) ggplot2::position_dodge(width = 0.5) else "identity"
         ) +
-        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
-        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_aipw_const, col_aipw), guide = "none") +
+        ggplot2::scale_color_manual(values = c(col_dim, col_ipw, col_oadj, col_aipw), guide = "none") +
+        ggplot2::scale_fill_manual(values = c(col_dim, col_ipw, col_oadj, col_aipw), guide = "none") +
         ggplot2::guides(color = "none", fill = "none") +
         ggplot2::facet_wrap(~ arm) +
         g_theme() +

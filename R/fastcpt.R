@@ -18,12 +18,18 @@ utils::globalVariables(c("pkgs"))
 #' @param perm.N The number of permutations.
 #' @param leaveout.N The number of training set / test set iterations. In each iteration, a random test set is generated. Thus, test sets will typically overlap somewhat. There is one exception: If leaveout = 1 and leaveout.N = n, then a traditional leave-one-out procedure is used (each observation is left out exactly once).
 #' @param comb.methods Which of the classifiers to include in the combined, overall p-value. Can be any subset of the classifiers specified in \code{class.methods} in addition to "ensemble" for the ensemble classifier.
-#' @param comb.method The method for combining p-values from the individual classifiers in order to produce an overall p-value. The default ("fisher") is recommended. The other possible option is "min" which uses the minimum p-value. Note that in both cases, the combined p-value itself is not returned; rather, the combined p-value is treated as a test statistic, which is itself then subject to permutation analysis; what is returned is the resulting p-value from this analysis.
+#' @param comb.method The method for combining p-values from the individual classifiers in order to produce an overall p-value. The default ("fisher") is recommended. The other possible option is "min" which uses the minimum p-value. Note that in both cases, the combined p-value itself is not returned; rather, the combined p-value is treated as a test statistic, which is itself then subject to permutation analysis; what is returned is the resulting p-value from this analysis. The "fisher" option computes \code{mean(log(p))}, a monotone transformation of the classical Fisher statistic; since comparison is against a permutation null rather than chi-squared, the scaling is immaterial.
 #' @param R.seed Random seed for R's set.seed (for reproducibility).
 #' @param ranger.seed Random seed for ranger (for reproducibility).
 #' @param parallel Logical. If TRUE, uses mirai for parallel processing across permutations.
 #' @param alpha Significance level for pass/fail determination. Default is 0.05, which is appropriate for experimental contexts where even slight classification ability is concerning. For observational studies, a lower threshold may be more appropriate.
-#' @param progress Logical. If TRUE (default), displays a progress bar during permutation testing.
+#' @param progress Logical. If TRUE, displays a progress bar during permutation testing.
+#'   Defaults to \code{interactive()}.
+#' @param classifier.args Optional named list of hyperparameters forwarded to the
+#'   classifier training functions. Supported keys: \code{num.trees} (for ranger forest,
+#'   default 500), \code{ferns} (number of ferns for rFerns, default 500),
+#'   \code{depth} (fern depth for rFerns, default 5), \code{nfolds} (for cv.glmnet,
+#'   default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5).
 #' @param clusters Optional vector of cluster identifiers (same length as \code{T}). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.
 #' @param blocks Optional vector of block identifiers (same length as \code{T}). When provided, permutations are restricted to within each block. Cannot be used together with \code{paired}.
 #'
@@ -55,7 +61,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     perm.N = 1000,
     leaveout.N = 100, comb.methods = c(class.methods, "ensemble"),
     comb.method = "fisher", R.seed = 1995, ranger.seed = 1995, parallel = FALSE,
-    alpha = 0.05, progress = TRUE)
+    alpha = 0.05, progress = interactive(), classifier.args = list())
 {
     # Save and restore RNG state
     old_seed <- .save_rng_state()
@@ -90,7 +96,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
 
     T = as.factor(T)
     set.seed(R.seed)
-    train.methods = .gettrainmethods(class.methods)
+    train.methods = .gettrainmethods(class.methods, classifier.args)
     test.methods = .gettestmethods(class.methods)
     metric_name <- if (is.character(metric)) metric else "custom"
     if (is.character(metric))
@@ -108,9 +114,11 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     teststat <- .getteststat(Z, T, leaveout, train.methods, test.methods, metric, ensemble.metric, leaveout.N)
 
     if (paired) {
+        # Note: paired permutation test does not support parallel execution.
+        # If parallel = TRUE with paired = TRUE, permutations run sequentially.
         T = as.numeric(T) - 1
         if (progress) pb <- utils::txtProgressBar(min = 0, max = perm.N, style = 3)
-        for (i in 1:perm.N) {
+        for (i in seq_len(perm.N)) {
             newT = T
             newT[T == 0] = stats::rbinom(length(T)/2, 1, 0.5)
             newT[T == 1] = 1 - newT[T == 0]
@@ -124,13 +132,13 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     else {
         # Pre-generate all permutations and per-iteration seeds (ensures reproducibility)
         base_seed <- sample.int(.Machine$integer.max, 1)
-        perm_Ts <- lapply(1:perm.N, function(i) as.factor(.permute_treatment(T, clusters = clusters, blocks = blocks)))
-        perm_seeds <- base_seed + (1:perm.N)
+        perm_Ts <- lapply(seq_len(perm.N), function(i) as.factor(.permute_treatment(T, clusters = clusters, blocks = blocks)))
+        perm_seeds <- base_seed + seq_len(perm.N)
 
         if (parallel) {
             # Chunk permutations across workers (1 chunk per core, not 1 perm per task)
             n_workers <- parallel::detectCores() - 1
-            chunk_ids <- split(1:perm.N, cut(1:perm.N, n_workers, labels = FALSE))
+            chunk_ids <- split(seq_len(perm.N), cut(seq_len(perm.N), n_workers, labels = FALSE))
 
             mirai::daemons(n_workers, dispatcher = FALSE)
             on.exit(mirai::daemons(0), add = TRUE)
@@ -162,7 +170,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
             }
         } else {
             if (progress) pb <- utils::txtProgressBar(min = 0, max = perm.N, style = 3)
-            for (i in 1:perm.N) {
+            for (i in seq_len(perm.N)) {
                 set.seed(perm_seeds[i])
                 nulldist[i, ] = .getteststat(Z, perm_Ts[[i]], leaveout, train.methods,
                     test.methods, metric, ensemble.metric, leaveout.N)
@@ -176,7 +184,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     nullpvaldist = matrix(NA, perm.N, ncol(nulldist))
     colnames(nullpvaldist) = names(pvals)
     # Compute p-values with +1 correction to avoid p = 0 (Phipson & Smyth 2010)
-    for (method.i in 1:ncol(nulldist)) {
+    for (method.i in seq_len(ncol(nulldist))) {
         pvals[method.i] = (sum(nulldist[, method.i] >= teststat[method.i]) + 1) / (perm.N + 1)
         nullpvaldist[, method.i] = 1 - (rank(nulldist[, method.i],
             ties.method = "min") - 1)/perm.N
@@ -212,9 +220,9 @@ function (tstZ, tstT, classifiers, test.methods, metric, ensemble.metric,
     if (nrow(tstZ) == 1) {
         class.output = rep(NA, length(classifiers) * length(levels(tstT)))
         dim(class.output) = c(length(classifiers), length(levels(tstT)))
-        for (i in 1:length(classifiers)) class.output[i, ] = test.methods[[i]](tstZ,
+        for (i in seq_along(classifiers)) class.output[i, ] = test.methods[[i]](tstZ,
             classifiers[[i]], testistrain = testistrain)
-        for (i in 1:length(classifiers)) rval[i] = metric(class.output[i,
+        for (i in seq_along(classifiers)) rval[i] = metric(class.output[i,
             , drop = FALSE], tstT)
         dim(class.output) = c(1, dim(class.output))
         rval[length(classifiers) + 1] = ensemble.metric(class.output,
@@ -225,9 +233,9 @@ function (tstZ, tstT, classifiers, test.methods, metric, ensemble.metric,
             length(levels(tstT)))
         dim(class.output) = c(nrow(tstZ), length(classifiers),
             length(levels(tstT)))
-        for (i in 1:length(classifiers)) class.output[, i, ] = test.methods[[i]](tstZ,
+        for (i in seq_along(classifiers)) class.output[, i, ] = test.methods[[i]](tstZ,
             classifiers[[i]], testistrain = testistrain)
-        for (i in 1:length(classifiers)) rval[i] = metric(class.output[,
+        for (i in seq_along(classifiers)) rval[i] = metric(class.output[,
             i, ], tstT)
         rval[length(classifiers) + 1] = ensemble.metric(class.output,
             tstT)
@@ -240,14 +248,18 @@ function (tstZ, tstT, classifiers, test.methods, metric, ensemble.metric,
 .getcombmethod <-
 function (comb.method)
 {
+    # Note: This computes mean(log(p)), a monotone transformation of Fisher's
+    # -2*sum(log(p)). Since comparison is against a permutation null (not chi-sq),
+    # the scaling is immaterial — only the ordering matters.
     if (comb.method == "fisher") {
         rval = function(x) {
             return(mean(log(x)))
         }
     }
-    if (comb.method == "min") {
+    else if (comb.method == "min") {
         rval = min
     }
+    else stop("Unknown combination method: ", comb.method, call. = FALSE)
     return(rval)
 }
 
@@ -262,34 +274,35 @@ function (ensemble.metric)
                 c(1, 2), max))) == 0
             temp = temp/as.vector(apply(temp, c(1, 2), sum))
             votemat = apply(temp, c(1, 3), sum)
-            indexmat = cbind(1:nrow(votemat), tstT)
+            indexmat = cbind(seq_len(nrow(votemat)), tstT)
             temp = votemat - apply(votemat, 1, max) == 0
             temp = temp/apply(temp, 1, sum)
             return(mean(votemat[indexmat]))
         }
     }
-    if (ensemble.metric == "mean.prob") {
+    else if (ensemble.metric == "mean.prob") {
         rval = function(class.output, tstT) {
             meanprob = apply(class.output, c(1, 3), mean)
-            indexmat = cbind(1:nrow(meanprob), tstT)
+            indexmat = cbind(seq_len(nrow(meanprob)), tstT)
             return(mean(meanprob[indexmat]))
         }
     }
-    if (ensemble.metric == "mean.log") {
+    else if (ensemble.metric == "mean.log") {
         rval = function(class.output, tstT) {
             meanprob = apply(class.output, c(1, 3), mean)
-            indexmat = cbind(1:nrow(meanprob), tstT)
+            indexmat = cbind(seq_len(nrow(meanprob)), tstT)
             return(mean(log(meanprob[indexmat] + 1e-04)))
         }
     }
-    if (ensemble.metric == "mean.mse") {
+    else if (ensemble.metric == "mean.mse") {
         rval = function(class.output, tstT) {
             meanprob = apply(class.output, c(1, 3), mean)
-            indexmat = cbind(1:nrow(meanprob), tstT)
+            indexmat = cbind(seq_len(nrow(meanprob)), tstT)
             meanprob[indexmat] = 1 - meanprob[indexmat]
             return(-mean(meanprob^2))
         }
     }
+    else stop("Unknown ensemble metric: ", ensemble.metric, call. = FALSE)
     return(rval)
 }
 
@@ -300,19 +313,19 @@ function (metric)
 {
     if (metric == "probability") {
         rval = function(prob, tstT) {
-            indexmat = cbind(1:nrow(prob), tstT)
+            indexmat = cbind(seq_len(nrow(prob)), tstT)
             return(mean(prob[indexmat]))
         }
     }
-    if (metric == "logscore") {
+    else if (metric == "logscore") {
         rval = function(prob, tstT) {
-            indexmat = cbind(1:nrow(prob), tstT)
+            indexmat = cbind(seq_len(nrow(prob)), tstT)
             return(mean(log(prob[indexmat] + 1e-04)))
         }
     }
     else if (metric == "rate") {
         rval = function(prob, tstT) {
-            indexmat = cbind(1:nrow(prob), tstT)
+            indexmat = cbind(seq_len(nrow(prob)), tstT)
             temp = prob - apply(prob, 1, max) == 0
             temp = temp/apply(temp, 1, sum)
             return(mean(temp[indexmat]))
@@ -320,11 +333,12 @@ function (metric)
     }
     else if (metric == "mse") {
         rval = function(prob, tstT) {
-            indexmat = cbind(1:nrow(prob), tstT)
+            indexmat = cbind(seq_len(nrow(prob)), tstT)
             prob[indexmat] = 1 - prob[indexmat]
             return(-mean(prob^2))
         }
     }
+    else stop("Unknown metric: ", metric, call. = FALSE)
     return(rval)
 }
 
@@ -360,6 +374,7 @@ function (method)
             X <- X[, classifier$cols, drop = FALSE]
 
             p1 <- as.numeric(stats::predict(classifier$fit, newx = X,
+                                             s = "lambda.min",
                                              type = "response"))
             cbind(1 - p1, p1)
         }
@@ -376,7 +391,7 @@ function (method)
 function (class.methods)
 {
     test.methods = list()
-    for (i in 1:length(class.methods)) test.methods[[i]] = .gettestmethod(class.methods[i])
+    for (i in seq_along(class.methods)) test.methods[[i]] = .gettestmethod(class.methods[i])
     return(test.methods)
 }
 
@@ -394,7 +409,7 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
     else if ((leaveout == 1) & (leaveout.N == nrow(Z))) {
         metric.mat = matrix(NA, leaveout.N, length(train.methods) +
             1)
-        for (leaveout.i in 1:leaveout.N) {
+        for (leaveout.i in seq_len(leaveout.N)) {
             trnZ = Z[-leaveout.i, , drop = FALSE]
             trnT = T[-leaveout.i]
             tstZ = Z[leaveout.i, , drop = FALSE]
@@ -408,9 +423,9 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
     else {
         metric.mat = matrix(NA, leaveout.N, length(train.methods) +
             1)
-        for (leaveout.i in 1:leaveout.N) {
+        for (leaveout.i in seq_len(leaveout.N)) {
             testset = rep(FALSE, length(T))
-            for (i in 1:length(levels(T))) testset[sample(which(levels(T)[i] ==
+            for (i in seq_along(levels(T))) testset[sample(which(levels(T)[i] ==
                 T), leaveout)] = TRUE
             trnZ = Z[!testset, , drop = FALSE]
             trnT = T[!testset]
@@ -427,28 +442,32 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
 #' @keywords internal
 #' @noRd
 .gettrainmethod <-
-function (method)
+function (method, classifier.args = list())
 {
     if (method == "forest") {
+        n_trees <- if (!is.null(classifier.args$num.trees)) classifier.args$num.trees else 500L
         rval = function(Z, T) {
             n_threads <- getOption("fastcpt.num.threads", parallel::detectCores() - 1L)
-            return(ranger::ranger(T ~ ., data = data.frame(T = T, Z), probability = TRUE, num.trees = 500L, num.threads = n_threads))
+            return(ranger::ranger(T ~ ., data = data.frame(T = T, Z), probability = TRUE, num.trees = n_trees, num.threads = n_threads))
         }
     }
     else if (method == "ferns") {
+        n_ferns <- if (!is.null(classifier.args$ferns)) classifier.args$ferns else 500L
+        fern_depth <- if (!is.null(classifier.args$depth)) classifier.args$depth else 5L
         rval = function(Z, T) {
-            return(rFerns::rFerns(T ~ ., importance = "none", ferns = 500L, depth = 5L, data = data.frame(T = T, Z)))
+            return(rFerns::rFerns(T ~ ., importance = "none", ferns = n_ferns, depth = fern_depth, data = data.frame(T = T, Z)))
         }
     }
     else if (method == "glmnet2") {
+        n_folds <- if (!is.null(classifier.args$nfolds)) classifier.args$nfolds else 5L
+        en_alpha <- if (!is.null(classifier.args$alpha)) classifier.args$alpha else 0.5
         rval = function(Z, T) {
             if (length(levels(T)) != 2)
                 stop("glmnet2 supports binary T only.")
             X <- stats::model.matrix(~.^2, data = as.data.frame(Z))[, -1, drop = FALSE]
             y <- as.integer(T) - 1L
-            fit <- glmnet::glmnet(x = X, y = y, family = "binomial",
-                                   alpha = 0.5, lambda = 0.01,
-                                   nlambda = 1, thresh = 1e-5, maxit = 1000L)
+            fit <- glmnet::cv.glmnet(x = X, y = y, family = "binomial",
+                                      alpha = en_alpha, nfolds = n_folds)
             list(fit = fit, cols = colnames(X))
         }
     }
@@ -461,10 +480,10 @@ function (method)
 #' @keywords internal
 #' @noRd
 .gettrainmethods <-
-function (class.methods)
+function (class.methods, classifier.args = list())
 {
     train.methods = list()
-    for (i in 1:length(class.methods)) train.methods[[i]] = .gettrainmethod(class.methods[i])
+    for (i in seq_along(class.methods)) train.methods[[i]] = .gettrainmethod(class.methods[i], classifier.args)
     return(train.methods)
 }
 
@@ -474,7 +493,7 @@ function (class.methods)
 function (trnZ, trnT, train.methods)
 {
     rval = list()
-    for (i in 1:length(train.methods)) rval[[i]] = train.methods[[i]](trnZ,
+    for (i in seq_along(train.methods)) rval[[i]] = train.methods[[i]](trnZ,
         trnT)
     return(rval)
 }

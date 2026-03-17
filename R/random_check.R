@@ -107,25 +107,18 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   if (!is.null(clusters)) .validate_clusters_treatment(W_real, clusters)
 
   #Print message if permutation selected
-  if(is.null(W_sim)){
-    message("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n")} else {
-      message("Simulated Assignment Vector Provided, Null Distribution Generated Using Simulated Treatment Assignment.\n")
-    }
+  if (getOption("MLbalance.verbose", TRUE)) {
+    if(is.null(W_sim)){
+      message("No Simulated Assignment Vector Provided, Null Distribution Generated Using Permutated Treatment Assignment.\n")} else {
+        message("Simulated Assignment Vector Provided, Null Distribution Generated Using Simulated Treatment Assignment.\n")
+      }
 
-  #Print simple count table(s)
-  if(length(unique(W_real)) <= 2 & !is.null(W_sim)){message("Simple Count Table(s)\n"); message(paste(utils::capture.output(print(table(W_real))), collapse = "\n")); message(paste(utils::capture.output(print(table(W_sim))), collapse = "\n"))}
+    #Print simple count table(s)
+    if(length(unique(W_real)) <= 2 & !is.null(W_sim)){message("Simple Count Table(s)\n"); message(paste(utils::capture.output(print(table(W_real))), collapse = "\n")); message(paste(utils::capture.output(print(table(W_sim))), collapse = "\n"))}
+  }
 
   # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
-  X_grf <- as.data.frame(X)
-  for (col in names(X_grf)) {
-    if (is.character(X_grf[[col]])) X_grf[[col]] <- as.factor(X_grf[[col]])
-    if (is.ordered(X_grf[[col]]))   X_grf[[col]] <- as.numeric(X_grf[[col]])
-  }
-  if (any(sapply(X_grf, is.factor))) {
-    X_matrix <- stats::model.matrix(~ . - 1, data = X_grf)
-  } else {
-    X_matrix <- as.matrix(X_grf)
-  }
+  X_matrix <- .prepare_covariates_for_grf(X)
 
   #Check if simulated treatment assignments provided, if not, permute the real treatment assignment vector.
   if(is.null(W_sim)){

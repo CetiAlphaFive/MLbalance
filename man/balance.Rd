@@ -18,6 +18,8 @@ balance(
   control = NULL,
   clusters = NULL,
   blocks = NULL,
+  num.trees = 2000,
+  overlap.threshold = c(0.05, 0.95),
   fastcpt.args = list()
 )
 
@@ -54,7 +56,20 @@ within each cluster.}
 \item{blocks}{Optional vector of block identifiers (same length as \code{W}). When provided,
 permutations in the balance test are restricted to within each block.}
 
-\item{fastcpt.args}{A named list of additional arguments to pass to \code{\link{fastcpt}}. For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.}
+\item{num.trees}{Number of trees used in \code{grf::causal_forest()} for treatment
+effect estimation. Default is 2000.}
+
+\item{overlap.threshold}{Numeric vector of length 2 giving the lower and upper propensity
+score thresholds for flagging overlap issues. Default is \code{c(0.05, 0.95)}.
+When any propensity scores fall outside these bounds, overlap-weighted estimates
+are automatically computed.}
+
+\item{fastcpt.args}{A named list of additional arguments to pass to \code{\link{fastcpt}}.
+For example, \code{fastcpt.args = list(parallel = TRUE, leaveout = 0.2)}.
+You can also pass classifier-specific hyperparameters through this list, e.g.,
+\code{fastcpt.args = list(classifier.args = list(num.trees = 1000))} for ranger,
+\code{list(classifier.args = list(ferns = 1000))} for rFerns, or
+\code{list(classifier.args = list(nfolds = 10))} for cv.glmnet.}
 
 \item{x}{A balance result object.}
 
@@ -73,8 +88,8 @@ A list of class "balance" containing:
 \item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
 \item{dim}{Difference-in-means estimate with standard error and confidence interval (only if \code{Y} is provided). For multi-arm, a named list.}
 \item{ipw}{IPW estimate using propensity scores from the boosted regression forest, with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
-\item{aipw}{Doubly robust estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
-\item{aipw_const}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{aipw}{AIPW (doubly robust) estimate from causal forest (with propensity weighting) with standard error and CI (only if \code{Y} is provided). For multi-arm, a named list.}
+\item{oadj}{Outcome-adjusted estimate from causal forest (no propensity weighting) with SE and CI (only if \code{Y} is provided). For multi-arm, a named list.}
 \item{passed}{Logical indicating whether the balance test passed. For multi-arm, a named logical vector.}
 \item{alpha}{The significance level used.}
 \item{cf}{The fitted causal_forest object(s) for advanced users (only if \code{Y} is provided). For multi-arm, a named list.}
@@ -87,7 +102,7 @@ A list of class "balance" containing:
 A unified function for covariate balance assessment and treatment effect estimation.
 Combines a formal balance test (via classification permutation test), visual diagnostics
 (propensity score distributions), and treatment effect estimates using both difference-in-means
-and augmented inverse propensity weighting (AIPW).
+and AIPW (augmented inverse propensity weighting).
 
 Supports both binary and multi-arm treatments. For multi-arm treatments, pairwise comparisons
 are made between each treatment arm and the control group.

@@ -84,12 +84,8 @@ summary.fastcpt <- function(object, ...) {
   classifier_names <- c(
     "ferns" = "Random Ferns",
     "forest" = "Random Forest",
-    "lda" = "Linear Discriminant Analysis",
-    "logistic" = "Logistic Regression",
-    "logistic2" = "Logistic Regression (2-way)",
     "glmnet2" = "Elastic Net (2-way)",
     "glmnet" = "Elastic Net (glmnet)",
-    "glmnet2" = "Elastic Net (2-way)",
     "ensemble" = "Ensemble"
   )
 
