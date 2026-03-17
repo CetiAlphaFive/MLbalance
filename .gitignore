@@ -51,3 +51,6 @@ rsconnect/
 # Work-in-progress explainer (not ready for public repo)
 balance.explainer.Rmd
 balance.explainer.html
+
+# Vignette (WIP, not ready yet)
+vignettes/MLbalance-workflow.Rmd
