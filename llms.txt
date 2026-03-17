@@ -235,3 +235,9 @@ b |> summary()
 - [`vip()`](https://cetialphafive.github.io/MLbalance/reference/vip.md)
   : Variable Importance Function
 
+# Articles
+
+### All vignettes
+
+- [Getting Started with
+  MLbalance](https://cetialphafive.github.io/MLbalance/articles/MLbalance-workflow.md):
