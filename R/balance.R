@@ -20,7 +20,9 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @param X Pre-treatment covariate matrix or data frame.
 #' @param alpha Significance level for balance test. Default is 0.05.
 #' @param perm.N Number of permutations for the balance test. Default is 1000.
-#' @param class.method Classification method for balance test. Default is "ferns".
+#' @param class.method Classification method for balance test. Can be "ferns" (default),
+#'   "forest", or "glmnet2". To use an ensemble of classifiers, pass
+#'   \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.
 #' @param seed Random seed for reproducibility. Default is 1995.
 #' @param control Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
 #'   the first factor level is used as control. A message is displayed indicating the control assumption.
@@ -42,6 +44,8 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #'   \code{fastcpt.args = list(classifier.args = list(num.trees = 1000))} for ranger,
 #'   \code{list(classifier.args = list(ferns = 1000))} for rFerns, or
 #'   \code{list(classifier.args = list(nfolds = 10))} for cv.glmnet.
+#'   You can also use this to run an ensemble of classifiers:
+#'   \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.
 #'
 #' @return A list of class "balance" containing:
 #' \item{balance_test}{Results from fastcpt including p-value and propensity scores. For multi-arm, a named list with one entry per treatment arm.}
@@ -56,6 +60,18 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' \item{control}{The control level used.}
 #' \item{arms}{Character vector of treatment arm names (excluding control).}
 #' \item{multiarm}{Logical indicating whether this is a multi-arm analysis.}
+#' \item{overlap_flag}{Logical indicating whether overlap issues were detected.}
+#' \item{overlap}{Overlap-weighted estimates (if \code{overlap_flag} is \code{TRUE}).}
+#' \item{n_extreme}{Number of observations with extreme propensity scores.}
+#' \item{pscores_real}{Propensity scores from the real treatment assignment.}
+#' \item{pscores_null}{Propensity scores from a permuted treatment assignment.}
+#' \item{n}{Number of observations.}
+#' \item{n_treated}{Number of treated units (binary case).}
+#' \item{n_control}{Number of control units (binary case).}
+#' \item{n_per_arm}{Named vector of sample sizes per arm (multi-arm case).}
+#' \item{clusters}{Cluster identifiers (if provided).}
+#' \item{blocks}{Block identifiers (if provided).}
+#' \item{ate_cov}{Covariance matrix of ATE estimates (used in divergence tests).}
 #'
 #' @examples
 #' \donttest{

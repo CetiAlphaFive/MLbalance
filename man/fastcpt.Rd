@@ -44,9 +44,9 @@ fastcpt(
 
 \item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast and handles interactions well.}
 
-\item{metric}{Which test statistic to use. Can be "rate" (classification accuracy rate), "mse", or "probability". The default value ("probability") is recommended.}
+\item{metric}{Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).}
 
-\item{ensemble.metric}{Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", or "mean.prob". The default value ("mean.prob") is recommended.}
+\item{ensemble.metric}{Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).}
 
 \item{paired}{Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.}
 
@@ -94,6 +94,12 @@ A list containing:
 \item{nulldist}{The permutation distributions of the individual classifiers.}
 \item{pvals}{The p-values of the individual classifiers.}
 \item{alpha}{The significance level used for pass/fail determination.}
+\item{class.methods}{Character vector of classification methods used.}
+\item{metric}{The metric function used.}
+\item{metric_name}{Character name of the metric.}
+\item{perm.N}{Number of permutations.}
+\item{clusters}{Cluster identifiers (if provided, otherwise \code{NULL}).}
+\item{blocks}{Block identifiers (if provided, otherwise \code{NULL}).}
 }
 \description{
 Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are great for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit using glmnet with elastic net regularization to prevent coefficient blowup under separation, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
