@@ -124,6 +124,12 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   if (any(is.na(as.matrix(X))))
     stop("X contains NA or NaN values. Remove or impute before running balance().", call. = FALSE)
 
+  # Inf check — catches log(0), 1/0, etc.
+  X_df_tmp <- as.data.frame(X)
+  num_cols <- vapply(X_df_tmp, is.numeric, logical(1))
+  if (any(num_cols) && any(is.infinite(as.matrix(X_df_tmp[num_cols]))))
+    stop("X contains Inf or -Inf values. Remove or replace before running balance().", call. = FALSE)
+
   if (!is.null(Y)) {
     if (!is.numeric(Y)) stop("Y must be a numeric vector.", call. = FALSE)
     if (length(Y) != length(W)) {
@@ -131,6 +137,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     }
     if (any(is.na(Y)))
       stop("Y contains NA values. Remove or impute before running balance().", call. = FALSE)
+    if (any(is.infinite(Y)))
+      stop("Y contains Inf or -Inf values. Remove or replace before running balance().", call. = FALSE)
   }
 
   .validate_clusters_blocks(clusters, blocks, length(W), paired = FALSE)
@@ -165,6 +173,12 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
   # Convert X to data frame; X_df is passed to fastcpt (ranger/ferns handle factors natively)
   X_df <- as.data.frame(X)
+
+  # Convert Date/POSIXt columns to numeric (days since epoch) — grf and ferns need numeric/factor
+  for (j in seq_along(X_df)) {
+    if (inherits(X_df[[j]], "Date") || inherits(X_df[[j]], "POSIXt"))
+      X_df[[j]] <- as.numeric(X_df[[j]])
+  }
 
   # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
   X_matrix <- .prepare_covariates_for_grf(X_df)
@@ -261,14 +275,28 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     }
 
     # 2. Fit honest propensity models for visualization (boosted RF from grf)
-    prop_real <- grf::boosted_regression_forest(
+    n_sub <- length(W_binary)
+    n_min_group <- min(sum(W_binary == 0), sum(W_binary == 1))
+
+    .wrap_grf <- function(expr) {
+      tryCatch(expr, error = function(e) {
+        if (grepl("honesty fraction", e$message, fixed = TRUE)) {
+          stop(sprintf(
+            "Sample too small or too imbalanced for grf propensity model (n = %d, min group = %d in '%s' vs '%s'). Use fastcpt() directly for balance testing.",
+            n_sub, n_min_group, arm, control), call. = FALSE)
+        }
+        stop(e)
+      })
+    }
+
+    prop_real <- .wrap_grf(grf::boosted_regression_forest(
       X = X_matrix_sub,
       Y = W_binary,
       honesty = TRUE,
       tune.parameters = "all",
       seed = seed,
       clusters = clusters_sub
-    )
+    ))
     pscores_real_list[[arm_name]] <- as.numeric(prop_real$predictions)
 
     # Variable importance from the propensity model
@@ -277,14 +305,14 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     # Null (permuted) treatment propensities
     set.seed(seed + which(treatment_arms == arm))
     W_null <- .permute_treatment(W_binary, clusters_sub, blocks_sub)
-    prop_null <- grf::boosted_regression_forest(
+    prop_null <- .wrap_grf(grf::boosted_regression_forest(
       X = X_matrix_sub,
       Y = W_null,
       honesty = TRUE,
       tune.parameters = "all",
       seed = seed,
       clusters = clusters_sub
-    )
+    ))
     pscores_null_list[[arm_name]] <- as.numeric(prop_null$predictions)
 
     # Detect extreme propensity scores
@@ -318,14 +346,14 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       e_hat <- pscores_real_list[[arm_name]]
 
       # Shared outcome model (boosted RF), used by all outcome-adjusting forests
-      outcome_forest <- grf::boosted_regression_forest(
+      outcome_forest <- .wrap_grf(grf::boosted_regression_forest(
         X = X_matrix_sub,
         Y = Y_sub,
         honesty = TRUE,
         tune.parameters = "all",
         seed = seed,
         clusters = clusters_sub
-      )
+      ))
       Y_hat <- as.numeric(outcome_forest$predictions)
 
       # IPW: boosted-RF propensity, flat outcome model

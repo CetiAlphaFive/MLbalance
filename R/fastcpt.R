@@ -97,6 +97,33 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     if (any(is.na(T)))
         stop("T contains NA values.", call. = FALSE)
 
+    # Inf check — catches log(0), 1/0, etc.
+    if (is.data.frame(Z)) {
+      num_cols <- vapply(Z, is.numeric, logical(1))
+      if (any(num_cols) && any(is.infinite(as.matrix(Z[num_cols]))))
+        stop("Z contains Inf or -Inf values. Remove or replace before running fastcpt().", call. = FALSE)
+    } else if (any(is.infinite(Z))) {
+      stop("Z contains Inf or -Inf values. Remove or replace before running fastcpt().", call. = FALSE)
+    }
+
+    # Convert character/Date columns for rFerns/ranger (require numeric or factor)
+    if (is.data.frame(Z)) {
+      for (j in seq_along(Z)) {
+        if (is.character(Z[[j]])) Z[[j]] <- as.factor(Z[[j]])
+        if (inherits(Z[[j]], "Date") || inherits(Z[[j]], "POSIXt")) Z[[j]] <- as.numeric(Z[[j]])
+      }
+    }
+
+    # rFerns hard limit: unordered factors with >30 levels
+    if ("ferns" %in% class.methods && is.data.frame(Z)) {
+      high_card <- vapply(Z, function(x) is.factor(x) && !is.ordered(x) && nlevels(x) > 30, logical(1))
+      if (any(high_card)) {
+        stop(sprintf(
+          "rFerns requires unordered factors with <= 30 levels. Offending covariate(s): %s. Collapse levels, convert to ordered factor, or use class.method = 'forest'.",
+          paste(names(Z)[high_card], collapse = ", ")), call. = FALSE)
+      }
+    }
+
     .validate_clusters_blocks(clusters, blocks, length(T), paired)
     if (!is.null(clusters)) .validate_clusters_treatment(T, clusters)
 

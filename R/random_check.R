@@ -103,6 +103,12 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
   if (any(is.na(as.matrix(X))))
     stop("X contains NA or NaN values. Remove or impute before running random_check().", call. = FALSE)
 
+  # Inf check — catches log(0), 1/0, etc.
+  X_df_tmp <- as.data.frame(X)
+  num_cols <- vapply(X_df_tmp, is.numeric, logical(1))
+  if (any(num_cols) && any(is.infinite(as.matrix(X_df_tmp[num_cols]))))
+    stop("X contains Inf or -Inf values. Remove or replace before running random_check().", call. = FALSE)
+
   .validate_clusters_blocks(clusters, blocks, length(W_real), paired = FALSE)
   if (!is.null(clusters)) .validate_clusters_treatment(W_real, clusters)
 
@@ -119,6 +125,14 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
 
   # Build numeric matrix for grf: ordered factors → numeric, unordered → one-hot
   X_matrix <- .prepare_covariates_for_grf(X)
+
+  # Coerce treatment to numeric for grf (consistent with balance())
+  if (!is.numeric(W_real)) {
+    W_real <- as.numeric(as.factor(W_real)) - 1
+  }
+  if (!is.null(W_sim) && !is.numeric(W_sim)) {
+    W_sim <- as.numeric(as.factor(W_sim)) - 1
+  }
 
   #Check if simulated treatment assignments provided, if not, permute the real treatment assignment vector.
   if(is.null(W_sim)){
