@@ -21,7 +21,7 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @param alpha Significance level for balance test. Default is 0.05.
 #' @param perm.N Number of permutations for the balance test. Default is 1000.
 #' @param class.method Classification method for balance test. Can be "ferns" (default),
-#'   "forest", or "glmnet2". To use an ensemble of classifiers, pass
+#'   "forest", "glmnet2", or "lm". To use an ensemble of classifiers, pass
 #'   \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.
 #' @param seed Random seed for reproducibility. Default is 1995.
 #' @param control Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
@@ -210,8 +210,8 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
 
   # For multi-arm: single joint K-class balance test on full data
   if (multiarm) {
-    if (class.method == "glmnet2") {
-      stop("glmnet2 only supports binary treatment. Use 'ferns' or 'forest' for multi-arm.", call. = FALSE)
+    if (class.method %in% c("glmnet2", "lm")) {
+      stop(paste0(class.method, " only supports binary treatment. Use 'ferns' or 'forest' for multi-arm."), call. = FALSE)
     }
     fastcpt_base_args <- list(
       Z = X_df, T = W_factor,

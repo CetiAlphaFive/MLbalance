@@ -42,7 +42,7 @@ fastcpt(
 
 \item{leaveout}{The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.}
 
-\item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast and handles interactions well.}
+\item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is fast and handles interactions well.}
 
 \item{metric}{Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).}
 

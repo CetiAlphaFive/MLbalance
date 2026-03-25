@@ -11,7 +11,7 @@ utils::globalVariables(c("pkgs"))
 #' @param Z The data. An n by p matrix, where n is the number of observations, and p is the number of covariates.
 #' @param T The treatment variable. Is converted to a factor.
 #' @param leaveout The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.
-#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast and handles interactions well.
+#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is fast and handles interactions well.
 #' @param metric Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).
 #' @param ensemble.metric Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).
 #' @param paired Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.
@@ -412,6 +412,21 @@ function (method)
             cbind(1 - p1, p1)
         }
     }
+    else if (method == "lm") {
+        rval = function(Z, classifier, testistrain = FALSE) {
+            X <- as.data.frame(Z)
+            # Align columns with training data
+            miss <- setdiff(classifier$cols, colnames(X))
+            if (length(miss)) {
+                for (m in miss) X[[m]] <- 0
+            }
+            X <- X[, classifier$cols, drop = FALSE]
+            p1 <- stats::predict(classifier$fit, newdata = X)
+            # Clamp to [0,1] — LPM can exceed bounds
+            p1 <- pmin(pmax(as.numeric(p1), 0), 1)
+            cbind(1 - p1, p1)
+        }
+    }
     else {
         stop("Unknown classification method: ", method, call. = FALSE)
     }
@@ -501,6 +516,16 @@ function (method, classifier.args = list())
             y <- as.integer(T) - 1L
             fit <- glmnet::cv.glmnet(x = X, y = y, family = "binomial",
                                       alpha = en_alpha, nfolds = n_folds)
+            list(fit = fit, cols = colnames(X))
+        }
+    }
+    else if (method == "lm") {
+        rval = function(Z, T) {
+            if (length(levels(T)) != 2)
+                stop("lm supports binary T only.")
+            X <- as.data.frame(Z)
+            y <- as.integer(T) - 1L
+            fit <- stats::lm(y ~ ., data = X)
             list(fit = fit, cols = colnames(X))
         }
     }

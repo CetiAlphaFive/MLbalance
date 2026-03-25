@@ -42,7 +42,7 @@ estimation (and the treatment effect plot) is skipped.}
 \item{perm.N}{Number of permutations for the balance test. Default is 1000.}
 
 \item{class.method}{Classification method for balance test. Can be "ferns" (default),
-"forest", or "glmnet2". To use an ensemble of classifiers, pass
+"forest", "glmnet2", or "lm". To use an ensemble of classifiers, pass
 \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.}
 
 \item{seed}{Random seed for reproducibility. Default is 1995.}
