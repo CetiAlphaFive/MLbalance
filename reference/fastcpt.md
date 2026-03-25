@@ -79,8 +79,8 @@ print(x, ...)
 - class.methods:
 
   A character vector of the different classification methods to use. Can
-  be "forest", "ferns", or "glmnet2". Default is "ferns" which is fast
-  and handles interactions well.
+  be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is
+  fast and handles interactions well.
 
 - metric:
 
