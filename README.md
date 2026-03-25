@@ -1,5 +1,5 @@
 
-# Machine Learning Balance <a href='https://github.com/CetiAlphaFive/MLbalance/blob/master/man/figures/mlbalance_sticker.png'><img src='man/figures/mlbalance_sticker.png' align="right" height="139" /></a>
+# Machine Learning Balance
 
 [![R-CMD-check](https://github.com/CetiAlphaFive/MLbalance/actions/workflows/check-standard.yaml/badge.svg)](https://github.com/CetiAlphaFive/MLbalance/actions/workflows/check-standard.yaml)
 [![Codecov](https://codecov.io/gh/CetiAlphaFive/MLbalance/graph/badge.svg)](https://codecov.io/gh/CetiAlphaFive/MLbalance)
