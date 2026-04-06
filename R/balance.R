@@ -416,14 +416,20 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       scores_oadj <- as.numeric(grf::get_scores(cf_const))
       scores_aipw <- as.numeric(grf::get_scores(cf))
 
-      # DiM influence function (block-aware propensities when blocking)
+      # DiM influence function (block-aware propensities and means when blocking)
       if (!is.null(blocks_sub)) {
         p_hat_vec <- stats::ave(W_binary, blocks_sub, FUN = mean)
+        mu1_vec <- stats::ave(Y_sub * W_binary, blocks_sub, FUN = sum) /
+                   pmax(stats::ave(W_binary, blocks_sub, FUN = sum), 1)
+        mu0_vec <- stats::ave(Y_sub * (1 - W_binary), blocks_sub, FUN = sum) /
+                   pmax(stats::ave(1 - W_binary, blocks_sub, FUN = sum), 1)
       } else {
         p_hat_vec <- rep(mean(W_binary), length(W_binary))
+        mu1_vec <- rep(mean(Y1), length(W_binary))
+        mu0_vec <- rep(mean(Y0), length(W_binary))
       }
-      scores_dim <- W_binary / p_hat_vec * (Y_sub - mean(Y1)) -
-                    (1 - W_binary) / (1 - p_hat_vec) * (Y_sub - mean(Y0))
+      scores_dim <- W_binary / p_hat_vec * (Y_sub - mu1_vec) -
+                    (1 - W_binary) / (1 - p_hat_vec) * (Y_sub - mu0_vec)
 
       # 4x4 covariance matrix of ATE estimators
       score_mat <- cbind(dim = scores_dim, ipw = scores_ipw,
@@ -432,7 +438,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       if (!is.null(clusters_sub)) {
         cluster_score_sums <- rowsum(score_mat, clusters_sub)
         n_clusters <- nrow(cluster_score_sums)
-        ate_cov_list[[arm_name]] <- stats::cov(cluster_score_sums) / (n_clusters^2)
+        ate_cov_list[[arm_name]] <- stats::cov(cluster_score_sums) * n_clusters / (n_sub^2)
       } else {
         ate_cov_list[[arm_name]] <- stats::cov(score_mat) / n_sub
       }
