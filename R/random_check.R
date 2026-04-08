@@ -101,7 +101,7 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
     stop("W_sim contains NA values. Remove or impute before running random_check().", call. = FALSE)
 
   if (any(is.na(as.matrix(X))))
-    stop("X contains NA or NaN values. Remove or impute before running random_check().", call. = FALSE)
+    warning("X contains NA or NaN values. Results may be unreliable; consider imputing before running random_check().", call. = FALSE)
 
   # Inf check — catches log(0), 1/0, etc.
   X_df_tmp <- as.data.frame(X)

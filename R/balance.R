@@ -122,7 +122,7 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
   if (any(is.na(W)))
     stop("W contains NA values.", call. = FALSE)
   if (any(is.na(as.matrix(X))))
-    stop("X contains NA or NaN values. Remove or impute before running balance().", call. = FALSE)
+    warning("X contains NA or NaN values. Results may be unreliable; consider imputing before running balance().", call. = FALSE)
 
   # Inf check — catches log(0), 1/0, etc.
   X_df_tmp <- as.data.frame(X)

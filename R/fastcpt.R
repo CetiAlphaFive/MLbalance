@@ -93,7 +93,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     if (!is.matrix(Z) && !is.data.frame(Z))
         stop("Z must be a matrix or data frame.", call. = FALSE)
     if (any(is.na(Z)))
-        stop("Z contains NA or NaN values. Remove or impute missing data before running fastcpt().", call. = FALSE)
+        warning("Z contains NA or NaN values. Results may be unreliable; consider imputing before running fastcpt().", call. = FALSE)
     if (any(is.na(T)))
         stop("T contains NA values.", call. = FALSE)
 
