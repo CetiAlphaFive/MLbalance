@@ -216,16 +216,16 @@ test_that("balance() errors on NA in W", {
   expect_error(balance(W = d$W, X = d$X, perm.N = 50), "NA")
 })
 
-test_that("balance() errors on NA in X", {
+test_that("balance() warns on NA in X", {
   d <- make_clean_data()
   d$X[3, 2] <- NA
-  expect_error(balance(W = d$W, X = d$X, perm.N = 50), "NA")
+  expect_warning(balance(W = d$W, X = d$X, perm.N = 50), "NA")
 })
 
-test_that("balance() errors on NaN in X", {
+test_that("balance() warns on NaN in X", {
   d <- make_clean_data()
   d$X[1, 1] <- NaN
-  expect_error(balance(W = d$W, X = d$X, perm.N = 50), "NA|NaN")
+  expect_warning(balance(W = d$W, X = d$X, perm.N = 50), "NA|NaN")
 })
 
 test_that("balance() errors on Inf in X (from log(0) or 1/0)", {
@@ -605,24 +605,6 @@ test_that("random_check() handles W_sim with different treatment coding", {
 })
 
 # ============================================================================
-# vip(): edge cases
-# ============================================================================
-
-test_that("vip() returns data.frame with correct structure", {
-  # BUG #7: vip() on boosted_regression_forest crashes due to grf internals.
-  # Known issue — skipped. Use vip() on individual forests, not boosted wrappers.
-  skip("vip() on boosted_regression_forest not supported (BUG #7 — known grf limitation)")
-  set.seed(1995)
-  W_real <- rep(0:1, each = 50)
-  X <- data.frame(x1 = rnorm(100), x2 = rnorm(100), x3 = rnorm(100))
-  rc <- random_check(W_real = W_real, X = X)
-  v <- vip(rc$prop.model.real)
-  expect_s3_class(v, "data.frame")
-  expect_named(v, c("varname", "vip"))
-  expect_equal(nrow(v), 3)
-  expect_true(all(diff(v$vip) <= 0))
-})
-
 # ============================================================================
 # Cross-function: the "I just loaded my Stata data" scenario
 # ============================================================================
