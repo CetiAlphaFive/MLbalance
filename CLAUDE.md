@@ -34,7 +34,7 @@ Tests are slow (each `balance()` test fits multiple boosted forests). Use `perm.
 
 Three-layer design, each layer an S3 class:
 
-1. **`fastcpt(Z, T, ...)`** (`R/fastcpt.R`) — The permutation test engine. Trains classifiers (ferns, ranger forest, or glmnet elastic net) on real treatment labels, then on `perm.N` permuted labels to build a null distribution. Returns p-value, test statistic, and null distribution. Supports `parallel = TRUE` via `mirai`. S3 methods in `R/fastcpt.plot.R`.
+1. **`fastcpt(Z, T, ...)`** (`R/fastcpt.R`) — The permutation test engine. Trains classifiers (ferns, ranger forest, glmnet elastic net, linear probability, rpart, LDA, or QDA) on real treatment labels, then on `perm.N` permuted labels to build a null distribution. Returns p-value, test statistic, and null distribution. Supports `parallel = TRUE` via `mirai`. S3 methods in `R/fastcpt.plot.R`. The three new backends (rpart, lda, qda) are gated by Suggests + `requireNamespace`.
 
 2. **`balance(Y, W, X, ...)`** (`R/balance.R`) — The main user-facing function. Calls `fastcpt()` for the balance test, then fits `grf::boosted_regression_forest` for propensity/outcome models and `grf::causal_forest` for ATE estimation (DiM, IPW, outcome-adjusted, AIPW). Handles multi-arm treatments via pairwise comparisons against a control level, with a joint K-class CPT. Detects extreme propensity scores and provides overlap-weighted (OW) fallback estimates. Returns S3 class "balance" with print/summary/plot methods.
 
@@ -57,7 +57,7 @@ Three-layer design, each layer an S3 class:
 ## Dependencies
 
 **Imports**: distributional, estimatr, grf, ggdist, ggplot2, ranger, rFerns
-**Suggests**: patchwork, mirai, glmnet, testthat
+**Suggests**: patchwork, mirai, glmnet, rpart, MASS, testthat
 
 `grf` is the heaviest dependency — used for boosted regression forests (propensity/outcome) and causal forests (ATE estimation).
 

@@ -11,7 +11,7 @@ utils::globalVariables(c("pkgs"))
 #' @param Z The data. An n by p matrix, where n is the number of observations, and p is the number of covariates.
 #' @param T The treatment variable. Is converted to a factor.
 #' @param leaveout The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.
-#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is fast and handles interactions well.
+#' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda". Default is "ferns" which is fast and handles interactions well. "rpart", "lda", and "qda" require their respective Suggests packages to be installed.
 #' @param metric Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).
 #' @param ensemble.metric Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).
 #' @param paired Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.
@@ -29,7 +29,10 @@ utils::globalVariables(c("pkgs"))
 #'   classifier training functions. Supported keys: \code{num.trees} (for ranger forest,
 #'   default 500), \code{ferns} (number of ferns for rFerns, default 500),
 #'   \code{depth} (fern depth for rFerns, default 5), \code{nfolds} (for cv.glmnet,
-#'   default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5).
+#'   default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5),
+#'   \code{cp} (rpart complexity parameter, default 0.01), \code{minbucket}
+#'   (rpart minimum leaf size, default 7). LDA and QDA take no tunable
+#'   hyperparameters in this wrapper.
 #' @param clusters Optional vector of cluster identifiers (same length as \code{T}). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.
 #' @param blocks Optional vector of block identifiers (same length as \code{T}). When provided, permutations are restricted to within each block. Cannot be used together with \code{paired}.
 #'
@@ -88,7 +91,12 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     if ("glmnet2" %in% class.methods && !requireNamespace("glmnet", quietly = TRUE)) {
         stop("Package 'glmnet' is required for glmnet2 classifier.", call. = FALSE)
     }
-
+    if ("rpart" %in% class.methods && !requireNamespace("rpart", quietly = TRUE)) {
+        stop("Package 'rpart' is required for rpart classifier.", call. = FALSE)
+    }
+    if (any(c("lda", "qda") %in% class.methods) && !requireNamespace("MASS", quietly = TRUE)) {
+        stop("Package 'MASS' is required for lda / qda classifiers.", call. = FALSE)
+    }
     # Input validation
     if (!is.matrix(Z) && !is.data.frame(Z))
         stop("Z must be a matrix or data frame.", call. = FALSE)
@@ -427,6 +435,23 @@ function (method)
             cbind(1 - p1, p1)
         }
     }
+    else if (method == "rpart") {
+        rval = function(Z, classifier, testistrain = FALSE) {
+            # rpart predict with type = "prob" returns matrix in factor-level order
+            stats::predict(classifier, newdata = data.frame(Z), type = "prob")
+        }
+    }
+    else if (method == "lda") {
+        rval = function(Z, classifier, testistrain = FALSE) {
+            # cpt-style: predict$posterior is K-column probability matrix in level order
+            stats::predict(classifier, newdata = data.frame(Z))$posterior
+        }
+    }
+    else if (method == "qda") {
+        rval = function(Z, classifier, testistrain = FALSE) {
+            stats::predict(classifier, newdata = data.frame(Z))$posterior
+        }
+    }
     else {
         stop("Unknown classification method: ", method, call. = FALSE)
     }
@@ -527,6 +552,29 @@ function (method, classifier.args = list())
             y <- as.integer(T) - 1L
             fit <- stats::lm(y ~ ., data = X)
             list(fit = fit, cols = colnames(X))
+        }
+    }
+    else if (method == "rpart") {
+        cp_val    <- if (!is.null(classifier.args$cp)) classifier.args$cp else 0.01
+        minbucket <- if (!is.null(classifier.args$minbucket)) classifier.args$minbucket else 7L
+        rval = function(Z, T) {
+            rpart::rpart(T ~ ., data = data.frame(T = T, Z),
+                         method = "class",
+                         control = rpart::rpart.control(cp = cp_val, minbucket = minbucket))
+        }
+    }
+    else if (method == "lda") {
+        rval = function(Z, T) {
+            gn <- length(levels(T))
+            MASS::lda(T ~ ., data = data.frame(T = T, Z),
+                      prior = rep(1 / gn, gn), tol = 1e-05)
+        }
+    }
+    else if (method == "qda") {
+        rval = function(Z, T) {
+            gn <- length(levels(T))
+            MASS::qda(T ~ ., data = data.frame(T = T, Z),
+                      prior = rep(1 / gn, gn))
         }
     }
     else {

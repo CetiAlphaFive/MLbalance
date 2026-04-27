@@ -42,7 +42,7 @@ fastcpt(
 
 \item{leaveout}{The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.}
 
-\item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is fast and handles interactions well.}
+\item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda". Default is "ferns" which is fast and handles interactions well. "rpart", "lda", and "qda" require their respective Suggests packages to be installed.}
 
 \item{metric}{Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).}
 
@@ -77,7 +77,10 @@ Defaults to \code{interactive()}.}
 classifier training functions. Supported keys: \code{num.trees} (for ranger forest,
 default 500), \code{ferns} (number of ferns for rFerns, default 500),
 \code{depth} (fern depth for rFerns, default 5), \code{nfolds} (for cv.glmnet,
-default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5).}
+default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5),
+\code{cp} (rpart complexity parameter, default 0.01), \code{minbucket}
+(rpart minimum leaf size, default 7). LDA and QDA take no tunable
+hyperparameters in this wrapper.}
 
 \item{x}{A fastcpt result object (for plot and print methods).}
 

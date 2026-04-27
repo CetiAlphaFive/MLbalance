@@ -21,6 +21,8 @@ Suggests:
     patchwork,
     mirai,
     glmnet,
+    rpart,
+    MASS,
     knitr,
     rmarkdown,
     tibble,

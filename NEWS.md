@@ -1,3 +1,7 @@
+# MLbalance (Unreleased)
+
+* Removed `fastcpt3()` and the `mlr3` / `mlr3learners` dependency. Added native `rpart`, `lda`, and `qda` backends to `fastcpt()` (all optional Suggests).
+
 # MLbalance 0.2
 
 * Initial CRAN submission.
