@@ -157,11 +157,18 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     if (paired) {
         # Note: paired permutation test does not support parallel execution.
         # If parallel = TRUE with paired = TRUE, permutations run sequentially.
+        if (nlevels(T) != 2L)
+            stop("paired = TRUE requires a binary treatment (T must have exactly 2 levels).",
+                 call. = FALSE)
+        n_per_group <- sum(T == levels(T)[1])
+        if (n_per_group != sum(T == levels(T)[2]))
+            stop("paired = TRUE requires equal-size groups (each level of T must have the same number of observations).",
+                 call. = FALSE)
         T = as.numeric(T) - 1
         if (progress) pb <- utils::txtProgressBar(min = 0, max = perm.N, style = 3)
         for (i in seq_len(perm.N)) {
             newT = T
-            newT[T == 0] = stats::rbinom(length(T)/2, 1, 0.5)
+            newT[T == 0] = stats::rbinom(n_per_group, 1, 0.5)
             newT[T == 1] = 1 - newT[T == 0]
             newT = as.factor(newT)
             nulldist[i, ] = .getteststat(Z, newT, leaveout, train.methods,

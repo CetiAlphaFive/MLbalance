@@ -346,3 +346,44 @@ test_that("fastcpt respects classifier.args for ferns", {
   expect_s3_class(res, "fastcpt")
   expect_true(is.numeric(res$pval))
 })
+
+test_that("paired = TRUE rejects multi-class T", {
+  set.seed(1995)
+  n <- 150
+  p <- 3
+  Z <- matrix(rnorm(n * p), n, p)
+  W <- rep(c(1, 2, 3), each = n / 3)
+
+  expect_error(
+    fastcpt(Z, W, class.methods = "ferns", paired = TRUE,
+            perm.N = 10, progress = FALSE),
+    "paired = TRUE requires a binary treatment"
+  )
+})
+
+test_that("paired = TRUE rejects unequal group sizes", {
+  set.seed(1995)
+  Z <- matrix(rnorm(120 * 3), 120, 3)
+  # Unequal: 80 of group 1, 40 of group 2
+  W <- c(rep(1, 80), rep(2, 40))
+
+  expect_error(
+    fastcpt(Z, W, class.methods = "ferns", paired = TRUE,
+            perm.N = 10, progress = FALSE),
+    "equal-size groups"
+  )
+})
+
+test_that("paired = TRUE runs on balanced binary T", {
+  set.seed(1995)
+  n <- 200
+  p <- 4
+  Z <- matrix(rnorm(n * p), n, p)
+  W <- rep(c(1, 2), each = n / 2)
+
+  res <- fastcpt(Z, W, class.methods = "ferns", paired = TRUE,
+                 perm.N = 50, progress = FALSE)
+
+  expect_s3_class(res, "fastcpt")
+  expect_true(res$pval >= 0 && res$pval <= 1)
+})
