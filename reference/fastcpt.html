@@ -90,7 +90,7 @@ Description of cpt: Non-parametric test for equality of multivariate distributio
 
 
 <dt id="arg-class-methods">class.methods<a class="anchor" aria-label="anchor" href="#arg-class-methods"></a></dt>
-<dd><p>A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is fast and handles interactions well.</p></dd>
+<dd><p>A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda". Default is "ferns" which is fast and handles interactions well. "rpart", "lda", and "qda" require their respective Suggests packages to be installed.</p></dd>
 
 
 <dt id="arg-metric">metric<a class="anchor" aria-label="anchor" href="#arg-metric"></a></dt>
@@ -155,7 +155,10 @@ Defaults to <code><a href="https://rdrr.io/r/base/interactive.html" class="exter
 classifier training functions. Supported keys: <code>num.trees</code> (for ranger forest,
 default 500), <code>ferns</code> (number of ferns for rFerns, default 500),
 <code>depth</code> (fern depth for rFerns, default 5), <code>nfolds</code> (for cv.glmnet,
-default 5), <code>alpha</code> (elastic net mixing for cv.glmnet, default 0.5).</p></dd>
+default 5), <code>alpha</code> (elastic net mixing for cv.glmnet, default 0.5),
+<code>cp</code> (rpart complexity parameter, default 0.01), <code>minbucket</code>
+(rpart minimum leaf size, default 7). LDA and QDA take no tunable
+hyperparameters in this wrapper.</p></dd>
 
 
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>

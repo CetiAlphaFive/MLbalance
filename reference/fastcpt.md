@@ -79,8 +79,10 @@ print(x, ...)
 - class.methods:
 
   A character vector of the different classification methods to use. Can
-  be "forest", "ferns", "glmnet2", or "lm". Default is "ferns" which is
-  fast and handles interactions well.
+  be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda".
+  Default is "ferns" which is fast and handles interactions well.
+  "rpart", "lda", and "qda" require their respective Suggests packages
+  to be installed.
 
 - metric:
 
@@ -180,7 +182,10 @@ print(x, ...)
   training functions. Supported keys: `num.trees` (for ranger forest,
   default 500), `ferns` (number of ferns for rFerns, default 500),
   `depth` (fern depth for rFerns, default 5), `nfolds` (for cv.glmnet,
-  default 5), `alpha` (elastic net mixing for cv.glmnet, default 0.5).
+  default 5), `alpha` (elastic net mixing for cv.glmnet, default 0.5),
+  `cp` (rpart complexity parameter, default 0.01), `minbucket` (rpart
+  minimum leaf size, default 7). LDA and QDA take no tunable
+  hyperparameters in this wrapper.
 
 - x:
 
