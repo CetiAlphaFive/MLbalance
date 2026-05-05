@@ -22,6 +22,7 @@ You can install the development version of MLbalance from
 [GitHub](https://github.com/CetiAlphaFive/MLbalance) with:
 
 ``` r
+
 # install.packages("pak")
 pak::pak("CetiAlphaFive/MLbalance")
 ```
@@ -57,6 +58,7 @@ and summary functions.
 To plot, simply execute:
 
 ``` r
+
 b |> plot()
 ```
 
@@ -65,6 +67,7 @@ b |> plot()
 To summarize, simply execute:
 
 ``` r
+
 b |> summary()
 #> 
 #> ========================================================================
