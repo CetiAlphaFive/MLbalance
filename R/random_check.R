@@ -8,8 +8,6 @@ utils::globalVariables(c("val", "var"))
 #
 #' Variable Importance Function
 #' @import grf
-#' @import ggdist
-#' @import ggplot2
 #' @param model Trained GRF Model Object
 #' @description
 #' This convenience function takes a trained grf model object and returns a data frame of variable importance scores using grf's simple variable importance metric.
@@ -152,28 +150,37 @@ random_check <- function(W_real, W_sim = NULL, X, R.seed = 1995, grf.seed = 1995
                         treat = c(W_real, W_sim),
                         val = c(g.real$predictions,g.sim$predictions))
 
-  #Create the overlapping histogram ggplot2
-  g <- ggplot(plot.df, aes(x = val,fill = var)) +
-    ggdist::stat_histinterval(slab_color = "gray70",
-                              outline_bars = TRUE,
-                              alpha = .75,
-                              point_alpha = 0,
-                              slab_linewidth = .5,
-                              breaks = breaks,
-                              interval_alpha = 0) +
-    geom_vline(xintercept = mean(g.real$predictions),color = "darkorange1",linetype = "dotdash",linewidth = .5) +
-    geom_vline(xintercept = mean(g.sim$predictions),color = "dodgerblue1",linetype = "dotdash",linewidth = .5) +
-    .g_theme() +
-    xlab("Treatment Propensity Scores") +
-    ylab("Density") +
-    labs(caption = expression(italic("Note: Dotted lines represent mean values for the null and real treatment propensity distributions."))) +
-    scale_fill_manual(values = c("dodgerblue1","darkorange1")) +
-    guides(fill=guide_legend(title="")) +
-    scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-    if(max(plot.df$val) > 1 | min(plot.df$val) < 0){scale_x_continuous(expand = c(0, 0))}else{scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))}
+  #Create the overlapping histogram ggplot2 (only if optional plotting deps installed)
+  if (requireNamespace("ggplot2", quietly = TRUE) &&
+      requireNamespace("ggdist", quietly = TRUE)) {
+    g <- ggplot2::ggplot(plot.df, ggplot2::aes(x = val, fill = var)) +
+      ggdist::stat_histinterval(slab_color = "gray70",
+                                outline_bars = TRUE,
+                                alpha = .75,
+                                point_alpha = 0,
+                                slab_linewidth = .5,
+                                breaks = breaks,
+                                interval_alpha = 0) +
+      ggplot2::geom_vline(xintercept = mean(g.real$predictions), color = "darkorange1", linetype = "dotdash", linewidth = .5) +
+      ggplot2::geom_vline(xintercept = mean(g.sim$predictions),  color = "dodgerblue1", linetype = "dotdash", linewidth = .5) +
+      .g_theme() +
+      ggplot2::xlab("Treatment Propensity Scores") +
+      ggplot2::ylab("Density") +
+      ggplot2::labs(caption = expression(italic("Note: Dotted lines represent mean values for the null and real treatment propensity distributions."))) +
+      ggplot2::scale_fill_manual(values = c("dodgerblue1", "darkorange1")) +
+      ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
+      ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+      if (max(plot.df$val) > 1 | min(plot.df$val) < 0) {
+        ggplot2::scale_x_continuous(expand = c(0, 0))
+      } else {
+        ggplot2::scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))
+      }
 
-  g <- g +
-    if(isTRUE(facet)){facet_wrap(~treat)}
+    if (isTRUE(facet)) g <- g + ggplot2::facet_wrap(~treat)
+  } else {
+    g <- NULL
+    warning("Packages 'ggplot2' and 'ggdist' are required to build the diagnostic plot. Returning plot = NULL.", call. = FALSE)
+  }
 
   #Create the results object list
   results <- list(

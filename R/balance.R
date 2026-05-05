@@ -1013,6 +1013,10 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     stop("Package 'ggdist' is required for plotting.", call. = FALSE)
   }
 
+  if (!requireNamespace("distributional", quietly = TRUE)) {
+    stop("Package 'distributional' is required for plotting.", call. = FALSE)
+  }
+
   # Color palette (consistent across plots)
   col_null <- "#4575B4"      # Blue for null/reference
   col_real <- "#D73027"      # Red-orange for real/observed
