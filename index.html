@@ -68,22 +68,37 @@
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
 <p>Here is a basic example demonstrating the suite of machine learning balance tests on a simulated binary treatment DGP with multidimensional contamination of the treatment assignment.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co">#&gt; Balance Assessment</span></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt; ------------------------------------------------------------</span></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;   Control:  '0'</span></span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt;   Balance:  p = 0.0010  [FAIL]</span></span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; Treatment Effect Estimates</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt; ------------------------------------------------------------</span></span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt;   DiM:                          -0.1265  (SE:  0.1599)</span></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co">#&gt;   IPW:                           0.5011  (SE:  0.1496)</span></span>
-<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="co">#&gt;   Outcome-adjusted:              0.4042  (SE:  0.0799)</span></span>
-<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a><span class="co">#&gt;   AIPW:                          0.8191  (SE:  0.0660)</span></span>
-<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="co">#&gt;   OVERLAP </span><span class="al">WARNING</span><span class="co">: 16 observations have extreme propensity scores.</span></span>
-<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a><span class="co">#&gt; Use summary() for full details, plot() to visualize.</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/CetiAlphaFive/MLbalance" class="external-link">MLbalance</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1995</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># binary toy example </span></span>
+<span><span class="va">n</span>  <span class="op">&lt;-</span> <span class="fl">1000</span></span>
+<span><span class="va">p</span>  <span class="op">&lt;-</span> <span class="fl">10</span></span>
+<span><span class="va">X</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">*</span><span class="va">p</span>,<span class="fl">0</span>,<span class="fl">1</span><span class="op">)</span>,<span class="va">n</span>,<span class="va">p</span><span class="op">)</span></span>
+<span><span class="va">W</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fl">.021</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fl">.4</span><span class="op">*</span><span class="va">X</span><span class="op">[</span>,<span class="fl">4</span><span class="op">]</span> <span class="op">-</span> <span class="fl">.5</span><span class="op">*</span><span class="va">X</span><span class="op">[</span>,<span class="fl">8</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">1</span>, <span class="fl">.021</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fl">.4</span><span class="op">*</span><span class="va">X</span><span class="op">[</span>,<span class="fl">4</span><span class="op">]</span> <span class="op">-</span> <span class="fl">.5</span><span class="op">*</span><span class="va">X</span><span class="op">[</span>,<span class="fl">8</span><span class="op">]</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span> <span class="co">#imbalance over X4 and X8</span></span>
+<span><span class="va">Y</span>  <span class="op">&lt;-</span> <span class="va">W</span> <span class="op">+</span> <span class="fl">0.8</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">-</span> <span class="fl">0.6</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span> <span class="op">+</span> <span class="fl">1.2</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">3</span><span class="op">]</span><span class="op">^</span><span class="fl">2</span> <span class="op">+</span> <span class="fl">1.5</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">4</span><span class="op">]</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">8</span><span class="op">]</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">6</span><span class="op">]</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">7</span><span class="op">]</span> <span class="op">-</span> <span class="fl">0.4</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">X</span><span class="op">[</span>,<span class="fl">9</span><span class="op">]</span><span class="op">)</span> <span class="op">+</span> <span class="fl">0.3</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">10</span><span class="op">]</span> <span class="op">*</span> <span class="va">X</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">.5</span><span class="op">)</span> <span class="co">#true treatment effect = 1, annoying DGP                       </span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Y <span class="op">=</span> <span class="va">Y</span>,W <span class="op">=</span> <span class="va">W</span>,X <span class="op">=</span> <span class="va">X</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># execute the balance tests and estimate treatment effects</span></span>
+<span><span class="va">b</span>  <span class="op">&lt;-</span> <span class="fu"><a href="reference/balance.html">balance</a></span><span class="op">(</span><span class="va">Y</span>,<span class="va">W</span>,<span class="va">X</span><span class="op">)</span>; <span class="va">b</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Balance Assessment</span></span>
+<span><span class="co">#&gt; ------------------------------------------------------------</span></span>
+<span><span class="co">#&gt;   Control:  '0'</span></span>
+<span><span class="co">#&gt;   Balance:  p = 0.0010  [FAIL]</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Treatment Effect Estimates</span></span>
+<span><span class="co">#&gt; ------------------------------------------------------------</span></span>
+<span><span class="co">#&gt;   DiM:                          -0.1265  (SE:  0.1599)</span></span>
+<span><span class="co">#&gt;   IPW:                           0.5008  (SE:  0.1496)</span></span>
+<span><span class="co">#&gt;   Outcome-adjusted:              0.3941  (SE:  0.0796)</span></span>
+<span><span class="co">#&gt;   AIPW:                          0.8070  (SE:  0.0661)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;   OVERLAP WARNING: 16 observations have extreme propensity scores.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Use summary() for full details, plot() to visualize.</span></span></code></pre></div>
 <p>One can quickly evaluate the output of the tests using the built in plot and summary functions.</p>
 <p>To plot, simply execute:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
@@ -118,11 +133,11 @@
 <span><span class="co">#&gt;    ----------------------------------------</span></span>
 <span><span class="co">#&gt;    Mean:                 0.4947      0.4966</span></span>
 <span><span class="co">#&gt;    SD:                   0.2207      0.0204</span></span>
-<span><span class="co">#&gt;    Min:                  0.1822      0.4302</span></span>
-<span><span class="co">#&gt;    Max:                  1.0071      0.5671</span></span>
+<span><span class="co">#&gt;    Min:                  0.1824      0.4302</span></span>
+<span><span class="co">#&gt;    Max:                  1.0077      0.5671</span></span>
 <span><span class="co">#&gt;    ----------------------------------------</span></span>
-<span><span class="co">#&gt;    Diff. in means:      -0.0019</span></span>
-<span><span class="co">#&gt;    Ratio of SDs:        10.8194</span></span>
+<span><span class="co">#&gt;    Diff. in means:      -0.0018</span></span>
+<span><span class="co">#&gt;    Ratio of SDs:        10.8183</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; 3. INTERPRETATION</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
@@ -140,46 +155,46 @@
 <span><span class="co">#&gt;    Estimator                    Estimate        SE                95% CI</span></span>
 <span><span class="co">#&gt;    ---------------------------------------------------------------------</span></span>
 <span><span class="co">#&gt;    DiM                           -0.1265    0.1599  [ -0.4400,   0.1869]</span></span>
-<span><span class="co">#&gt;    IPW                            0.5011    0.1496  [  0.2079,   0.7944]</span></span>
-<span><span class="co">#&gt;    Outcome-adjusted               0.4042    0.0799  [  0.2477,   0.5608]</span></span>
-<span><span class="co">#&gt;    AIPW                           0.8191    0.0660  [  0.6897,   0.9485]</span></span>
+<span><span class="co">#&gt;    IPW                            0.5008    0.1496  [  0.2077,   0.7940]</span></span>
+<span><span class="co">#&gt;    Outcome-adjusted               0.3941    0.0796  [  0.2380,   0.5501]</span></span>
+<span><span class="co">#&gt;    AIPW                           0.8070    0.0661  [  0.6775,   0.9366]</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    OVERLAP WARNING: 16 observations have extreme propensity scores</span></span>
 <span><span class="co">#&gt;    (&lt; 0.05 or &gt; 0.95). Overlap-weighted estimates down-weight these:</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    Estimator                    Estimate        SE                95% CI</span></span>
 <span><span class="co">#&gt;    ---------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt;    IPW (OW)                       0.6670    0.1757  [  0.3226,   1.0114]</span></span>
-<span><span class="co">#&gt;    Outcome-adj. (OW)              0.4032    0.0800  [  0.2465,   0.5600]</span></span>
-<span><span class="co">#&gt;    AIPW (OW)                      0.8940    0.0769  [  0.7432,   1.0447]</span></span>
+<span><span class="co">#&gt;    IPW (OW)                       0.6671    0.1757  [  0.3227,   1.0116]</span></span>
+<span><span class="co">#&gt;    Outcome-adj. (OW)              0.3931    0.0797  [  0.2368,   0.5493]</span></span>
+<span><span class="co">#&gt;    AIPW (OW)                      0.8825    0.0771  [  0.7313,   1.0337]</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; 5. ESTIMATOR DIVERGENCE TESTS</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
 <span><span class="co">#&gt;    Comparison                    Difference   SE(diff)   z-stat   p-value</span></span>
 <span><span class="co">#&gt;    ----------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt;    DiM vs IPW                       -0.6277     0.0692   -9.071    0.0000 *</span></span>
-<span><span class="co">#&gt;    DiM vs Outcome-adj.              -0.5308     0.1241   -4.276    0.0000 *</span></span>
-<span><span class="co">#&gt;    DiM vs AIPW                      -0.9456     0.1313   -7.201    0.0000 *</span></span>
-<span><span class="co">#&gt;    IPW vs AIPW                      -0.3179     0.1195   -2.661    0.0078 *</span></span>
+<span><span class="co">#&gt;    DiM vs IPW                       -0.6274     0.0691   -9.084    0.0000 *</span></span>
+<span><span class="co">#&gt;    DiM vs Outcome-adj.              -0.5206     0.1241   -4.195    0.0000 *</span></span>
+<span><span class="co">#&gt;    DiM vs AIPW                      -0.9336     0.1314   -7.106    0.0000 *</span></span>
+<span><span class="co">#&gt;    IPW vs AIPW                      -0.3062     0.1197   -2.557    0.0106 *</span></span>
 <span><span class="co">#&gt;    * p &lt; 0.05</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    Significant divergences:</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs IPW: The IPW estimate differs from the unadjusted DiM</span></span>
-<span><span class="co">#&gt;    by 0.6277 units (z = -9.071, p = 0.0000), indicating that propensity</span></span>
+<span><span class="co">#&gt;    by 0.6274 units (z = -9.084, p = 0.0000), indicating that propensity</span></span>
 <span><span class="co">#&gt;    reweighting accounts for this difference.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs Outcome-adjusted: The outcome-adjusted estimate differs from</span></span>
-<span><span class="co">#&gt;    the unadjusted DiM by 0.5308 units (z = -4.276, p = 0.0000), indicating</span></span>
+<span><span class="co">#&gt;    the unadjusted DiM by 0.5206 units (z = -4.195, p = 0.0000), indicating</span></span>
 <span><span class="co">#&gt;    that outcome regression adjustment accounts for this difference.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs AIPW: The AIPW estimate differs from the unadjusted DiM</span></span>
-<span><span class="co">#&gt;    by 0.9456 units (z = -7.201, p = 0.0000), reflecting the combined</span></span>
+<span><span class="co">#&gt;    by 0.9336 units (z = -7.106, p = 0.0000), reflecting the combined</span></span>
 <span><span class="co">#&gt;    effect of propensity and outcome adjustment.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    IPW vs AIPW: Adding outcome regression to propensity reweighting</span></span>
-<span><span class="co">#&gt;    changes the estimate by 0.3179 units (z = -2.661, p = 0.0078),</span></span>
+<span><span class="co">#&gt;    changes the estimate by 0.3062 units (z = -2.557, p = 0.0106),</span></span>
 <span><span class="co">#&gt;    indicating that outcome modeling captures additional</span></span>
 <span><span class="co">#&gt;    covariate-outcome associations beyond reweighting.</span></span>
 <span><span class="co">#&gt; </span></span>

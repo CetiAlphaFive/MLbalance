@@ -33,7 +33,22 @@ Here is a basic example demonstrating the suite of machine learning
 balance tests on a simulated binary treatment DGP with multidimensional
 contamination of the treatment assignment.
 
-``` R
+``` r
+
+library(MLbalance)
+set.seed(1995)
+
+# binary toy example 
+n  <- 1000
+p  <- 10
+X  <- matrix(rnorm(n*p,0,1),n,p)
+W  <- rbinom(n, 1, ifelse(.021 + abs(.4*X[,4] - .5*X[,8]) < 1, .021 + abs(.4*X[,4] - .5*X[,8]), 1)) #imbalance over X4 and X8
+Y  <- W + 0.8 * X[,1] - 0.6 * X[,2] + 1.2 * X[,3]^2 + 1.5 * X[,4] * X[,8] + 0.5 * X[,6] * X[,7] - 0.4 * abs(X[,9]) + 0.3 * X[,10] * X[,1] + rnorm(n, 0, .5) #true treatment effect = 1, annoying DGP                       
+
+df <- data.frame(Y = Y,W = W,X = X)
+
+# execute the balance tests and estimate treatment effects
+b  <- balance(Y,W,X); b
 #> 
 #> Balance Assessment
 #> ------------------------------------------------------------
@@ -43,9 +58,9 @@ contamination of the treatment assignment.
 #> Treatment Effect Estimates
 #> ------------------------------------------------------------
 #>   DiM:                          -0.1265  (SE:  0.1599)
-#>   IPW:                           0.5011  (SE:  0.1496)
-#>   Outcome-adjusted:              0.4042  (SE:  0.0799)
-#>   AIPW:                          0.8191  (SE:  0.0660)
+#>   IPW:                           0.5008  (SE:  0.1496)
+#>   Outcome-adjusted:              0.3941  (SE:  0.0796)
+#>   AIPW:                          0.8070  (SE:  0.0661)
 #> 
 #>   OVERLAP WARNING: 16 observations have extreme propensity scores.
 #> 
@@ -95,11 +110,11 @@ b |> summary()
 #>    ----------------------------------------
 #>    Mean:                 0.4947      0.4966
 #>    SD:                   0.2207      0.0204
-#>    Min:                  0.1822      0.4302
-#>    Max:                  1.0071      0.5671
+#>    Min:                  0.1824      0.4302
+#>    Max:                  1.0077      0.5671
 #>    ----------------------------------------
-#>    Diff. in means:      -0.0019
-#>    Ratio of SDs:        10.8194
+#>    Diff. in means:      -0.0018
+#>    Ratio of SDs:        10.8183
 #> 
 #> 3. INTERPRETATION
 #> ------------------------------------------------------------------------
@@ -117,46 +132,46 @@ b |> summary()
 #>    Estimator                    Estimate        SE                95% CI
 #>    ---------------------------------------------------------------------
 #>    DiM                           -0.1265    0.1599  [ -0.4400,   0.1869]
-#>    IPW                            0.5011    0.1496  [  0.2079,   0.7944]
-#>    Outcome-adjusted               0.4042    0.0799  [  0.2477,   0.5608]
-#>    AIPW                           0.8191    0.0660  [  0.6897,   0.9485]
+#>    IPW                            0.5008    0.1496  [  0.2077,   0.7940]
+#>    Outcome-adjusted               0.3941    0.0796  [  0.2380,   0.5501]
+#>    AIPW                           0.8070    0.0661  [  0.6775,   0.9366]
 #> 
 #>    OVERLAP WARNING: 16 observations have extreme propensity scores
 #>    (< 0.05 or > 0.95). Overlap-weighted estimates down-weight these:
 #> 
 #>    Estimator                    Estimate        SE                95% CI
 #>    ---------------------------------------------------------------------
-#>    IPW (OW)                       0.6670    0.1757  [  0.3226,   1.0114]
-#>    Outcome-adj. (OW)              0.4032    0.0800  [  0.2465,   0.5600]
-#>    AIPW (OW)                      0.8940    0.0769  [  0.7432,   1.0447]
+#>    IPW (OW)                       0.6671    0.1757  [  0.3227,   1.0116]
+#>    Outcome-adj. (OW)              0.3931    0.0797  [  0.2368,   0.5493]
+#>    AIPW (OW)                      0.8825    0.0771  [  0.7313,   1.0337]
 #> 
 #> 
 #> 5. ESTIMATOR DIVERGENCE TESTS
 #> ------------------------------------------------------------------------
 #>    Comparison                    Difference   SE(diff)   z-stat   p-value
 #>    ----------------------------------------------------------------------
-#>    DiM vs IPW                       -0.6277     0.0692   -9.071    0.0000 *
-#>    DiM vs Outcome-adj.              -0.5308     0.1241   -4.276    0.0000 *
-#>    DiM vs AIPW                      -0.9456     0.1313   -7.201    0.0000 *
-#>    IPW vs AIPW                      -0.3179     0.1195   -2.661    0.0078 *
+#>    DiM vs IPW                       -0.6274     0.0691   -9.084    0.0000 *
+#>    DiM vs Outcome-adj.              -0.5206     0.1241   -4.195    0.0000 *
+#>    DiM vs AIPW                      -0.9336     0.1314   -7.106    0.0000 *
+#>    IPW vs AIPW                      -0.3062     0.1197   -2.557    0.0106 *
 #>    * p < 0.05
 #> 
 #>    Significant divergences:
 #> 
 #>    DiM vs IPW: The IPW estimate differs from the unadjusted DiM
-#>    by 0.6277 units (z = -9.071, p = 0.0000), indicating that propensity
+#>    by 0.6274 units (z = -9.084, p = 0.0000), indicating that propensity
 #>    reweighting accounts for this difference.
 #> 
 #>    DiM vs Outcome-adjusted: The outcome-adjusted estimate differs from
-#>    the unadjusted DiM by 0.5308 units (z = -4.276, p = 0.0000), indicating
+#>    the unadjusted DiM by 0.5206 units (z = -4.195, p = 0.0000), indicating
 #>    that outcome regression adjustment accounts for this difference.
 #> 
 #>    DiM vs AIPW: The AIPW estimate differs from the unadjusted DiM
-#>    by 0.9456 units (z = -7.201, p = 0.0000), reflecting the combined
+#>    by 0.9336 units (z = -7.106, p = 0.0000), reflecting the combined
 #>    effect of propensity and outcome adjustment.
 #> 
 #>    IPW vs AIPW: Adding outcome regression to propensity reweighting
-#>    changes the estimate by 0.3179 units (z = -2.661, p = 0.0078),
+#>    changes the estimate by 0.3062 units (z = -2.557, p = 0.0106),
 #>    indicating that outcome modeling captures additional
 #>    covariate-outcome associations beyond reweighting.
 #> 
