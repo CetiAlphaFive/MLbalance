@@ -4,9 +4,23 @@ utils::globalVariables(c("pkgs"))
 #' (fast) Classification Permutation Test
 #'
 #' @description
-#' Code derived from the cpt package by Johann Gagnon-Bartsch. This version is optimized for speed, but the core structure is the same. The original package uses the RandomForest package, which is quite slow and lacks a variety of features available in other packages. This code converts to ranger and also adds an option for random ferns. Although obscure, random ferns are great for this - a very solid classifier that natively handles interactions and runs extremely fast on pretty much any hardware. I've also worked to add a version of logit using glmnet with elastic net regularization to prevent coefficient blowup under separation, and added a basic parallel backend so the function runs reasonably quickly on larger datasets. Taken together these changes allow the user to run cpt in seconds rather than minutes or even hours for many datasets.
+#' Non-parametric test for equality of multivariate distributions. Trains
+#' classifiers to distinguish observations by treatment label; if classification
+#' beats chance under permutation inference, the null of equal distributions is
+#' rejected. Derived from the \code{cpt} package (Gagnon-Bartsch), reworked for
+#' speed via \code{ranger}, random ferns, regularized logit (\code{glmnet2}), and
+#' an optional \code{mirai} parallel backend.
 #'
-#'Description of cpt: Non-parametric test for equality of multivariate distributions. Trains a classifier to classify (multivariate) observations as coming from one of several distributions. If the classifier is able to classify the observations better than would be expected by chance (using permutation inference), then the null hypothesis that the distributions are equal is rejected.
+#' Supported classifiers (\code{class.methods}):
+#' \itemize{
+#'   \item \code{"ferns"} — random ferns (default; fast, native interactions)
+#'   \item \code{"forest"} — ranger random forest
+#'   \item \code{"glmnet2"} — elastic-net logit with 2-way interactions (binary only)
+#'   \item \code{"lm"} — linear probability model
+#'   \item \code{"rpart"} — CART decision tree (Suggests: rpart)
+#'   \item \code{"lda"} — linear discriminant analysis (Suggests: MASS)
+#'   \item \code{"qda"} — quadratic discriminant analysis (Suggests: MASS)
+#' }
 #'
 #' @param Z The data. An n by p matrix, where n is the number of observations, and p is the number of covariates.
 #' @param T The treatment variable. Is converted to a factor.

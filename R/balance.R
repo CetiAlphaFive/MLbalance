@@ -21,8 +21,9 @@ utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", 
 #' @param alpha Significance level for balance test. Default is 0.05.
 #' @param perm.N Number of permutations for the balance test. Default is 1000.
 #' @param class.method Classification method for balance test. Can be "ferns" (default),
-#'   "forest", "glmnet2", or "lm". To use an ensemble of classifiers, pass
-#'   \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.
+#'   "forest", "glmnet2", "lm", "rpart", "lda", or "qda". See \code{\link{fastcpt}}
+#'   for the authoritative list and details on each backend. To use an ensemble of
+#'   classifiers, pass \code{fastcpt.args = list(class.methods = c("ferns", "forest"))}.
 #' @param seed Random seed for reproducibility. Default is 1995.
 #' @param control Optional. The value in \code{W} to use as the control group. If \code{NULL} (default),
 #'   the first factor level is used as control. A message is displayed indicating the control assumption.
