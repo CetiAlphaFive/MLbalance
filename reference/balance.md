@@ -66,7 +66,10 @@ plot(x, which = "all", combined = TRUE, breaks = 25, ...)
 - class.method:
 
   Classification method for balance test. Can be "ferns" (default),
-  "forest", "glmnet2", or "lm". To use an ensemble of classifiers, pass
+  "forest", "glmnet2", "lm", "rpart", "lda", or "qda". See
+  [`fastcpt`](https://cetialphafive.github.io/MLbalance/reference/fastcpt.md)
+  for the authoritative list and details on each backend. To use an
+  ensemble of classifiers, pass
   `fastcpt.args = list(class.methods = c("ferns", "forest"))`.
 
 - seed:

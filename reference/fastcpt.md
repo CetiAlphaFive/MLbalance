@@ -1,25 +1,27 @@
 # (fast) Classification Permutation Test
 
-Code derived from the cpt package by Johann Gagnon-Bartsch. This version
-is optimized for speed, but the core structure is the same. The original
-package uses the RandomForest package, which is quite slow and lacks a
-variety of features available in other packages. This code converts to
-ranger and also adds an option for random ferns. Although obscure,
-random ferns are great for this - a very solid classifier that natively
-handles interactions and runs extremely fast on pretty much any
-hardware. I've also worked to add a version of logit using glmnet with
-elastic net regularization to prevent coefficient blowup under
-separation, and added a basic parallel backend so the function runs
-reasonably quickly on larger datasets. Taken together these changes
-allow the user to run cpt in seconds rather than minutes or even hours
-for many datasets.
+Non-parametric test for equality of multivariate distributions. Trains
+classifiers to distinguish observations by treatment label; if
+classification beats chance under permutation inference, the null of
+equal distributions is rejected. Derived from the `cpt` package
+(Gagnon-Bartsch), reworked for speed via `ranger`, random ferns,
+regularized logit (`glmnet2`), and an optional `mirai` parallel backend.
 
-Description of cpt: Non-parametric test for equality of multivariate
-distributions. Trains a classifier to classify (multivariate)
-observations as coming from one of several distributions. If the
-classifier is able to classify the observations better than would be
-expected by chance (using permutation inference), then the null
-hypothesis that the distributions are equal is rejected.
+Supported classifiers (`class.methods`):
+
+- `"ferns"` — random ferns (default; fast, native interactions)
+
+- `"forest"` — ranger random forest
+
+- `"glmnet2"` — elastic-net logit with 2-way interactions (binary only)
+
+- `"lm"` — linear probability model
+
+- `"rpart"` — CART decision tree (Suggests: rpart)
+
+- `"lda"` — linear discriminant analysis (Suggests: MASS)
+
+- `"qda"` — quadratic discriminant analysis (Suggests: MASS)
 
 ## Usage
 
