@@ -299,6 +299,22 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
     ))
     pscores_real_list[[arm_name]] <- as.numeric(prop_real$predictions)
 
+    # Clamp out-of-bounds propensities: grf::boosted_regression_forest is a
+    # regression forest and can return values outside [0,1] under strong X->W
+    # signal. Without clamping, downstream grf::average_treatment_effect would
+    # divide by zero in IPW/AIPW and return NaN silently.
+    ps_eps <- 1e-6
+    ps_raw <- pscores_real_list[[arm_name]]
+    n_below <- sum(ps_raw < ps_eps)
+    n_above <- sum(ps_raw > 1 - ps_eps)
+    if (n_below + n_above > 0) {
+      message(sprintf(
+        "Propensity scores for arm '%s' clamped to [%g, %g] (%d below, %d above; raw range [%.4f, %.4f]).\n  Cause: grf::boosted_regression_forest is a regression forest, so predictions can fall outside [0,1] under strong covariate-treatment association.\n  Consequence: without this clamp, IPW and AIPW estimates would be NaN. Diagnostic plots will show clamped values; raw range is reported above.",
+        arm_name, ps_eps, 1 - ps_eps, n_below, n_above, min(ps_raw), max(ps_raw)),
+        domain = NA)
+      pscores_real_list[[arm_name]] <- pmin(pmax(ps_raw, ps_eps), 1 - ps_eps)
+    }
+
     # Variable importance from the propensity model
     vip_list[[arm_name]] <- vip(prop_real$forests[[1]])
 
