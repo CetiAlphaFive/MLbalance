@@ -54,7 +54,7 @@ b  <- balance(Y,W,X); b
 One can quickly evaluate the output of the tests using the built in plot and summary functions. 
 
 To plot, simply execute: 
-```{r, plot, fig.height=5, fig.width=10}
+```{r, plot, fig.height=5, fig.width=15}
 b |> plot()
 ```
 

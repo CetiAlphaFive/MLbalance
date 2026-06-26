@@ -489,9 +489,8 @@ test_that("print/summary/plot work on minimal balance object (no Y)", {
   result <- balance(W = d$W[1:100], X = d$X[1:100, ], perm.N = 50)
   expect_output(print(result))
   expect_output(summary(result))
-  # null_dist is continuous-only; on a discrete object it warns and is skipped
-  expect_warning(plot(result, which = "null_dist"),
-                 "only shown for continuous treatment")
+  pl_null <- plot(result, which = "null_dist")
+  expect_s3_class(pl_null, "gg")
   p <- plot(result, which = "pscores")
   expect_s3_class(p, "gg")
 })

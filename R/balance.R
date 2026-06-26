@@ -1,6 +1,6 @@
 # Suppress R CMD check notes for non-standard evaluation
-utils::globalVariables(c("estimator", "estimate", "var", "val", ".dist", "arm", "comparison",
-                         "mean_real", "mean_null", "testval", "pval", "status_text", "color",
+utils::globalVariables(c("estimator", "estimate", "val", ".dist", "arm", "comparison",
+                         "testval", "pval", "status_text", "color",
                          "weight", "arm_group", "mean_control", "mean_treated"))
 
 #' Complete Balance Assessment and Treatment Effect Estimation
@@ -510,9 +510,6 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       pscores_real = pscores_real_list[[1]],
       pscores_null = pscores_null_list[[1]],
       pscores_arm = arm_indicator_list[[1]],
-      # Reserved for future continuous-treatment support; gates the dormant
-      # null-based plot branch in plot.balance().
-      continuous = FALSE,
       imp.predictors = vip_list[[1]],
       n = length(W),
       n_treated = n_per_arm[[1]]$treated,
@@ -540,9 +537,6 @@ balance <- function(Y = NULL, W, X, alpha = 0.05, perm.N = 1000, class.method = 
       pscores_real = pscores_real_list,
       pscores_null = pscores_null_list,
       pscores_arm = arm_indicator_list,
-      # Reserved for future continuous-treatment support; gates the dormant
-      # null-based plot branch in plot.balance().
-      continuous = FALSE,
       imp.predictors = vip_list,
       n = length(W),
       n_per_arm = n_per_arm,
@@ -1027,20 +1021,15 @@ summary.balance <- function(object, ...) {
 #' Plot method for balance objects
 #'
 #' @description
-#' Diagnostic plots for a fitted \code{balance} object. The propensity panel
-#' (\code{"pscores"}) is mode-dependent: for discrete treatment (the only mode
-#' currently supported) it shows propensity scores overlaid by treatment arm
-#' (control vs treated); the null-based panels (real-vs-null propensities and the
-#' permutation null distribution, \code{"null_dist"}) are reserved for a future
-#' continuous-treatment mode and are not shown for discrete treatment.
+#' Diagnostic plots for a fitted \code{balance} object.
 #'
 #' @param x A balance result object.
 #' @param which Character vector specifying which plots to create. Options are
-#'   "pscores", "null_dist", "effects", or "all". For discrete treatment,
-#'   "pscores" shows propensity-score overlap by treatment arm and "all" resolves
-#'   to the propensity and (when \code{Y} was supplied) effects panels;
-#'   "null_dist" is only available for continuous treatment (requesting it on a
-#'   discrete object warns and skips it).
+#'   "pscores", "null_dist", "effects", or "all". "pscores" shows the propensity
+#'   score distributions compared between treatment arms (control vs treated);
+#'   "null_dist" shows the classification permutation test null distribution;
+#'   "effects" shows the treatment effect estimates (only when \code{Y} was
+#'   supplied). "all" resolves to all available panels.
 #' @param combined Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE.
 #' @param breaks Number of breaks for histograms. Default is 25.
 #' @param ... Additional arguments (currently unused).
@@ -1096,25 +1085,12 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
 
   has_effects <- !is.null(x$dim) && !is.null(x$ipw) && !is.null(x$aipw) && !is.null(x$oadj)
 
-  # Continuous-treatment mode is reserved for the future and currently always FALSE.
-  # When FALSE (discrete), the null-based panels are suppressed and the propensity
-  # panel shows overlap by treatment arm.
-  is_cont <- isTRUE(x$continuous)
-
   if (length(which) == 1 && which == "all") {
-    if (is_cont) {
-      which <- c("pscores", "null_dist", if (has_effects) "effects")
-    } else {
-      which <- c("pscores", if (has_effects) "effects")
-    }
+    which <- if (has_effects) c("pscores", "null_dist", "effects") else c("pscores", "null_dist")
   }
   if ("effects" %in% which && !has_effects) {
     warning("Outcome Y not provided: skipping treatment effect plot.", call. = FALSE)
     which <- setdiff(which, "effects")
-  }
-  if ("null_dist" %in% which && !is_cont) {
-    warning("Null distribution plot is only shown for continuous treatment; skipping.", call. = FALSE)
-    which <- setdiff(which, "null_dist")
   }
 
   plots <- list()
@@ -1124,83 +1100,45 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
   # ============================================================================
   if (!x$multiarm) {
 
-    # Panel A: Propensity score panel (content depends on treatment mode)
+    # Panel A: Propensity score overlap by treatment arm (control vs treated)
     if ("pscores" %in% which && !is.null(x$pscores_real)) {
-      if (!is_cont) {
-        # DISCRETE: propensity-score overlap by treatment arm (control vs treated)
-        arm_grp <- factor(ifelse(x$pscores_arm == 1L, "Treated", "Control"),
-                          levels = c("Control", "Treated"))
-        plot_df <- data.frame(arm_group = arm_grp, val = x$pscores_real)
-        mean_control <- mean(x$pscores_real[x$pscores_arm == 0L])
-        mean_treated <- mean(x$pscores_real[x$pscores_arm == 1L])
+      arm_grp <- factor(ifelse(x$pscores_arm == 1L, "Treated", "Control"),
+                        levels = c("Control", "Treated"))
+      plot_df <- data.frame(arm_group = arm_grp, val = x$pscores_real)
+      mean_control <- mean(x$pscores_real[x$pscores_arm == 0L])
+      mean_treated <- mean(x$pscores_real[x$pscores_arm == 1L])
 
-        plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = arm_group)) +
-          ggdist::stat_histinterval(
-            slab_color = "gray70",
-            outline_bars = TRUE,
-            alpha = 0.75,
-            point_alpha = 0,
-            slab_linewidth = 0.5,
-            breaks = breaks,
-            interval_alpha = 0
-          ) +
-          ggplot2::geom_vline(xintercept = mean_control, color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::geom_vline(xintercept = mean_treated, color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
-          g_theme() +
-          ggplot2::labs(
-            title = "A. Propensity Score Overlap by Treatment Arm",
-            x = "Treatment Propensity Scores",
-            y = "Density",
-            caption = expression(italic("Note: Dotted lines represent mean propensity scores for the control and treated groups."))
-          ) +
-          ggplot2::scale_fill_manual(values = c("Control" = "dodgerblue1", "Treated" = "darkorange1"), name = "") +
-          ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
-          ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-          if (max(plot_df$val) > 1 || min(plot_df$val) < 0) {
-            ggplot2::scale_x_continuous(expand = c(0, 0))
-          } else {
-            ggplot2::scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))
-          }
-      } else if (!is.null(x$pscores_null)) {
-        # CONTINUOUS (dormant): Real vs Null propensity distributions
-        plot_df <- data.frame(
-          var = factor(c(rep("Real", length(x$pscores_real)), rep("Null", length(x$pscores_null))),
-                       levels = c("Null", "Real")),
-          val = c(x$pscores_real, x$pscores_null)
-        )
-
-        plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = var)) +
-          ggdist::stat_histinterval(
-            slab_color = "gray70",
-            outline_bars = TRUE,
-            alpha = 0.75,
-            point_alpha = 0,
-            slab_linewidth = 0.5,
-            breaks = breaks,
-            interval_alpha = 0
-          ) +
-          ggplot2::geom_vline(xintercept = mean(x$pscores_real), color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::geom_vline(xintercept = mean(x$pscores_null), color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
-          g_theme() +
-          ggplot2::labs(
-            title = "A. Propensity Score Distributions",
-            x = "Treatment Propensity Scores",
-            y = "Density",
-            caption = expression(italic("Note: Dotted lines represent mean values for the null and real treatment propensity distributions."))
-          ) +
-          ggplot2::scale_fill_manual(values = c("dodgerblue1", "darkorange1"), name = "") +
-          ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
-          ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-          if (max(plot_df$val) > 1 || min(plot_df$val) < 0) {
-            ggplot2::scale_x_continuous(expand = c(0, 0))
-          } else {
-            ggplot2::scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))
-          }
-      }
+      plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = arm_group)) +
+        ggdist::stat_histinterval(
+          slab_color = "gray70",
+          outline_bars = TRUE,
+          alpha = 0.75,
+          point_alpha = 0,
+          slab_linewidth = 0.5,
+          breaks = breaks,
+          interval_alpha = 0
+        ) +
+        ggplot2::geom_vline(xintercept = mean_control, color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
+        ggplot2::geom_vline(xintercept = mean_treated, color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
+        g_theme() +
+        ggplot2::labs(
+          title = "A. Propensity Score Overlap by Treatment Arm",
+          x = "Treatment Propensity Scores",
+          y = "Density",
+          caption = expression(italic("Note: Dotted lines represent mean propensity scores for the control and treated groups."))
+        ) +
+        ggplot2::scale_fill_manual(values = c("Control" = "dodgerblue1", "Treated" = "darkorange1"), name = "") +
+        ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
+        ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        if (max(plot_df$val) > 1 || min(plot_df$val) < 0) {
+          ggplot2::scale_x_continuous(expand = c(0, 0))
+        } else {
+          ggplot2::scale_x_continuous(limits = c(0, 1.01), expand = c(0, 0))
+        }
     }
 
-    # Panel B (continuous only): Classification permutation test null distribution
-    if ("null_dist" %in% which && is_cont) {
+    # Panel B: Classification permutation test null distribution
+    if ("null_dist" %in% which) {
       test_pass <- x$balance_test$pval > x$alpha
       color_select <- ifelse(test_pass, col_pass, col_fail)
       status_text <- ifelse(test_pass, "Pass", "Fail")
@@ -1330,116 +1268,63 @@ plot.balance <- function(x, which = "all", combined = TRUE, breaks = 25, ...) {
     # MULTI-ARM TREATMENT PLOTS (with facets)
     # ============================================================================
 
-    # Panel A: Propensity score panel, faceted by arm (content depends on mode)
+    # Panel A: Propensity score overlap by treatment arm (control vs treated), faceted
     if ("pscores" %in% which && !is.null(x$pscores_real)) {
-      if (!is_cont) {
-        # DISCRETE: propensity-score overlap by arm (control vs treated), faceted
-        plot_df_list <- lapply(x$arms, function(arm) {
-          ps  <- x$pscores_real[[arm]]
-          ind <- x$pscores_arm[[arm]]
-          data.frame(
-            arm = sprintf("%s vs %s", arm, x$control),
-            arm_group = factor(ifelse(ind == 1L, "Treated", "Control"),
-                               levels = c("Control", "Treated")),
-            val = ps
-          )
-        })
-        plot_df <- do.call(rbind, plot_df_list)
-        plot_df$arm <- factor(plot_df$arm, levels = unique(plot_df$arm))
+      plot_df_list <- lapply(x$arms, function(arm) {
+        ps  <- x$pscores_real[[arm]]
+        ind <- x$pscores_arm[[arm]]
+        data.frame(
+          arm = sprintf("%s vs %s", arm, x$control),
+          arm_group = factor(ifelse(ind == 1L, "Treated", "Control"),
+                             levels = c("Control", "Treated")),
+          val = ps
+        )
+      })
+      plot_df <- do.call(rbind, plot_df_list)
+      plot_df$arm <- factor(plot_df$arm, levels = unique(plot_df$arm))
 
-        # Per-arm control/treated means for vertical lines
-        mean_df <- do.call(rbind, lapply(x$arms, function(arm) {
-          ps  <- x$pscores_real[[arm]]
-          ind <- x$pscores_arm[[arm]]
-          data.frame(
-            arm = sprintf("%s vs %s", arm, x$control),
-            mean_control = mean(ps[ind == 0L]),
-            mean_treated = mean(ps[ind == 1L])
-          )
-        }))
-        mean_df$arm <- factor(mean_df$arm, levels = levels(plot_df$arm))
+      # Per-arm control/treated means for vertical lines
+      mean_df <- do.call(rbind, lapply(x$arms, function(arm) {
+        ps  <- x$pscores_real[[arm]]
+        ind <- x$pscores_arm[[arm]]
+        data.frame(
+          arm = sprintf("%s vs %s", arm, x$control),
+          mean_control = mean(ps[ind == 0L]),
+          mean_treated = mean(ps[ind == 1L])
+        )
+      }))
+      mean_df$arm <- factor(mean_df$arm, levels = levels(plot_df$arm))
 
-        plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = arm_group)) +
-          ggdist::stat_histinterval(
-            slab_color = "gray70",
-            outline_bars = TRUE,
-            alpha = 0.75,
-            point_alpha = 0,
-            slab_linewidth = 0.5,
-            breaks = breaks,
-            interval_alpha = 0
-          ) +
-          ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_control),
-                              color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_treated),
-                              color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::facet_wrap(~ arm, scales = "free_x") +
-          g_theme() +
-          ggplot2::labs(
-            title = "A. Propensity Score Overlap by Treatment Arm",
-            x = "Treatment Propensity Scores",
-            y = "Density",
-            caption = expression(italic("Note: Dotted lines represent mean propensity scores for the control and treated groups."))
-          ) +
-          ggplot2::scale_fill_manual(values = c("Control" = "dodgerblue1", "Treated" = "darkorange1"), name = "") +
-          ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
-          ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-          ggplot2::theme(legend.position = "bottom")
-      } else if (!is.null(x$pscores_null)) {
-        # CONTINUOUS (dormant): Real vs Null propensity distributions, faceted
-        plot_df_list <- lapply(x$arms, function(arm) {
-          data.frame(
-            arm = sprintf("%s vs %s", arm, x$control),
-            var = factor(c(rep("Real", length(x$pscores_real[[arm]])),
-                           rep("Null", length(x$pscores_null[[arm]]))),
-                         levels = c("Null", "Real")),
-            val = c(x$pscores_real[[arm]], x$pscores_null[[arm]])
-          )
-        })
-        plot_df <- do.call(rbind, plot_df_list)
-        plot_df$arm <- factor(plot_df$arm, levels = unique(plot_df$arm))
-
-        # Compute means per arm for vertical lines
-        mean_df <- do.call(rbind, lapply(x$arms, function(arm) {
-          data.frame(
-            arm = sprintf("%s vs %s", arm, x$control),
-            mean_real = mean(x$pscores_real[[arm]]),
-            mean_null = mean(x$pscores_null[[arm]])
-          )
-        }))
-        mean_df$arm <- factor(mean_df$arm, levels = levels(plot_df$arm))
-
-        plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = var)) +
-          ggdist::stat_histinterval(
-            slab_color = "gray70",
-            outline_bars = TRUE,
-            alpha = 0.75,
-            point_alpha = 0,
-            slab_linewidth = 0.5,
-            breaks = breaks,
-            interval_alpha = 0
-          ) +
-          ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_real),
-                              color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_null),
-                              color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
-          ggplot2::facet_wrap(~ arm, scales = "free_x") +
-          g_theme() +
-          ggplot2::labs(
-            title = "A. Propensity Score Distributions by Treatment Arm",
-            x = "Treatment Propensity Scores",
-            y = "Density",
-            caption = expression(italic("Note: Dotted lines represent mean values for the null and real treatment propensity distributions."))
-          ) +
-          ggplot2::scale_fill_manual(values = c("dodgerblue1", "darkorange1"), name = "") +
-          ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
-          ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-          ggplot2::theme(legend.position = "bottom")
-      }
+      plots$pscores <- ggplot2::ggplot(plot_df, ggplot2::aes(x = val, fill = arm_group)) +
+        ggdist::stat_histinterval(
+          slab_color = "gray70",
+          outline_bars = TRUE,
+          alpha = 0.75,
+          point_alpha = 0,
+          slab_linewidth = 0.5,
+          breaks = breaks,
+          interval_alpha = 0
+        ) +
+        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_control),
+                            color = "dodgerblue1", linetype = "dotdash", linewidth = 0.5) +
+        ggplot2::geom_vline(data = mean_df, ggplot2::aes(xintercept = mean_treated),
+                            color = "darkorange1", linetype = "dotdash", linewidth = 0.5) +
+        ggplot2::facet_wrap(~ arm, scales = "free_x") +
+        g_theme() +
+        ggplot2::labs(
+          title = "A. Propensity Score Overlap by Treatment Arm",
+          x = "Treatment Propensity Scores",
+          y = "Density",
+          caption = expression(italic("Note: Dotted lines represent mean propensity scores for the control and treated groups."))
+        ) +
+        ggplot2::scale_fill_manual(values = c("Control" = "dodgerblue1", "Treated" = "darkorange1"), name = "") +
+        ggplot2::guides(fill = ggplot2::guide_legend(title = "")) +
+        ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        ggplot2::theme(legend.position = "bottom")
     }
 
-    # Panel B (continuous only): Classification permutation test null distribution (joint)
-    if ("null_dist" %in% which && is_cont) {
+    # Panel B: Classification permutation test null distribution (joint)
+    if ("null_dist" %in% which) {
       test_pass <- x$balance_test$pval > x$alpha
       color_select <- ifelse(test_pass, col_pass, col_fail)
       status_text <- ifelse(test_pass, "Pass", "Fail")

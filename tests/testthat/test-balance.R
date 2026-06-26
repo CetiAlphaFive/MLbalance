@@ -195,11 +195,8 @@ test_that("balance plot returns ggplot for different which values", {
 
   res <- balance(Y, W, X, perm.N = 50)
 
-  # null_dist is continuous-only; on a discrete object it warns and is skipped
-  expect_warning(
-    plot(res, which = "null_dist"),
-    "only shown for continuous treatment"
-  )
+  pl_null <- plot(res, which = "null_dist")
+  expect_s3_class(pl_null, "ggplot")
 
   pl_ps <- plot(res, which = "pscores")
   expect_s3_class(pl_ps, "ggplot")
