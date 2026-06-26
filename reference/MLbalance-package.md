@@ -22,4 +22,6 @@ Useful links:
 
 Authors:
 
+- Jack T. Rametta <jtrametta@gmail.com>
+
 - Sam Fuller <sfuller@fas.harvard.edu>

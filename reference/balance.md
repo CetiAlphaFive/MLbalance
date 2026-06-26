@@ -10,6 +10,14 @@ Supports both binary and multi-arm treatments. For multi-arm treatments,
 pairwise comparisons are made between each treatment arm and the control
 group.
 
+Diagnostic plots for a fitted `balance` object. The propensity panel
+(`"pscores"`) is mode-dependent: for discrete treatment (the only mode
+currently supported) it shows propensity scores overlaid by treatment
+arm (control vs treated); the null-based panels (real-vs-null
+propensities and the permutation null distribution, `"null_dist"`) are
+reserved for a future continuous-treatment mode and are not shown for
+discrete treatment.
+
 ## Usage
 
 ``` r
@@ -137,7 +145,11 @@ plot(x, which = "all", combined = TRUE, breaks = 25, ...)
 - which:
 
   Character vector specifying which plots to create. Options are
-  "pscores", "null_dist", "effects", or "all".
+  "pscores", "null_dist", "effects", or "all". For discrete treatment,
+  "pscores" shows propensity-score overlap by treatment arm and "all"
+  resolves to the propensity and (when `Y` was supplied) effects panels;
+  "null_dist" is only available for continuous treatment (requesting it
+  on a discrete object warns and skips it).
 
 - combined:
 

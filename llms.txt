@@ -58,9 +58,9 @@ b  <- balance(Y,W,X); b
 #> Treatment Effect Estimates
 #> ------------------------------------------------------------
 #>   DiM:                          -0.1265  (SE:  0.1599)
-#>   IPW:                           0.5008  (SE:  0.1496)
+#>   IPW:                           0.5007  (SE:  0.1496)
 #>   Outcome-adjusted:              0.3941  (SE:  0.0796)
-#>   AIPW:                          0.8070  (SE:  0.0661)
+#>   AIPW:                          0.8071  (SE:  0.0661)
 #> 
 #>   OVERLAP WARNING: 16 observations have extreme propensity scores.
 #> 
@@ -75,6 +75,22 @@ To plot, simply execute:
 ``` r
 
 b |> plot()
+#> Warning in density(x, n = 2, range_only = TRUE, trim = trim, adjust = adjust, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
+#> Warning in density(x, n = 2, range_only = TRUE, trim = trim, adjust = adjust, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
+#> Warning in density(x, n = n, adjust = adjust, trim = trim, breaks = breaks, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
+#> Warning in density(x, n = n, adjust = adjust, trim = trim, breaks = breaks, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
 ```
 
 ![](reference/figures/README-plot-1.png)
@@ -111,10 +127,10 @@ b |> summary()
 #>    Mean:                 0.4947      0.4966
 #>    SD:                   0.2207      0.0204
 #>    Min:                  0.1824      0.4302
-#>    Max:                  1.0077      0.5671
+#>    Max:                  1.0000      0.5671
 #>    ----------------------------------------
-#>    Diff. in means:      -0.0018
-#>    Ratio of SDs:        10.8183
+#>    Diff. in means:      -0.0019
+#>    Ratio of SDs:        10.8174
 #> 
 #> 3. INTERPRETATION
 #> ------------------------------------------------------------------------
@@ -132,16 +148,16 @@ b |> summary()
 #>    Estimator                    Estimate        SE                95% CI
 #>    ---------------------------------------------------------------------
 #>    DiM                           -0.1265    0.1599  [ -0.4400,   0.1869]
-#>    IPW                            0.5008    0.1496  [  0.2077,   0.7940]
+#>    IPW                            0.5007    0.1496  [  0.2075,   0.7939]
 #>    Outcome-adjusted               0.3941    0.0796  [  0.2380,   0.5501]
-#>    AIPW                           0.8070    0.0661  [  0.6775,   0.9366]
+#>    AIPW                           0.8071    0.0661  [  0.6775,   0.9366]
 #> 
 #>    OVERLAP WARNING: 16 observations have extreme propensity scores
 #>    (< 0.05 or > 0.95). Overlap-weighted estimates down-weight these:
 #> 
 #>    Estimator                    Estimate        SE                95% CI
 #>    ---------------------------------------------------------------------
-#>    IPW (OW)                       0.6671    0.1757  [  0.3227,   1.0116]
+#>    IPW (OW)                       0.6669    0.1757  [  0.3225,   1.0113]
 #>    Outcome-adj. (OW)              0.3931    0.0797  [  0.2368,   0.5493]
 #>    AIPW (OW)                      0.8825    0.0771  [  0.7313,   1.0337]
 #> 
@@ -150,16 +166,16 @@ b |> summary()
 #> ------------------------------------------------------------------------
 #>    Comparison                    Difference   SE(diff)   z-stat   p-value
 #>    ----------------------------------------------------------------------
-#>    DiM vs IPW                       -0.6274     0.0691   -9.084    0.0000 *
+#>    DiM vs IPW                       -0.6272     0.0691   -9.077    0.0000 *
 #>    DiM vs Outcome-adj.              -0.5206     0.1241   -4.195    0.0000 *
-#>    DiM vs AIPW                      -0.9336     0.1314   -7.106    0.0000 *
-#>    IPW vs AIPW                      -0.3062     0.1197   -2.557    0.0106 *
+#>    DiM vs AIPW                      -0.9336     0.1314   -7.107    0.0000 *
+#>    IPW vs AIPW                      -0.3064     0.1198   -2.558    0.0105 *
 #>    * p < 0.05
 #> 
 #>    Significant divergences:
 #> 
 #>    DiM vs IPW: The IPW estimate differs from the unadjusted DiM
-#>    by 0.6274 units (z = -9.084, p = 0.0000), indicating that propensity
+#>    by 0.6272 units (z = -9.077, p = 0.0000), indicating that propensity
 #>    reweighting accounts for this difference.
 #> 
 #>    DiM vs Outcome-adjusted: The outcome-adjusted estimate differs from
@@ -167,11 +183,11 @@ b |> summary()
 #>    that outcome regression adjustment accounts for this difference.
 #> 
 #>    DiM vs AIPW: The AIPW estimate differs from the unadjusted DiM
-#>    by 0.9336 units (z = -7.106, p = 0.0000), reflecting the combined
+#>    by 0.9336 units (z = -7.107, p = 0.0000), reflecting the combined
 #>    effect of propensity and outcome adjustment.
 #> 
 #>    IPW vs AIPW: Adding outcome regression to propensity reweighting
-#>    changes the estimate by 0.3062 units (z = -2.557, p = 0.0106),
+#>    changes the estimate by 0.3064 units (z = -2.558, p = 0.0105),
 #>    indicating that outcome modeling captures additional
 #>    covariate-outcome associations beyond reweighting.
 #> 

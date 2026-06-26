@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Machine Learning Balance • MLbalance</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Machine Learning Balance">
 <meta name="description" content='A suite of machine learning balance tests and estimation tools for experimental and observational data, including a fast implementation of the classification permutation test (Johann Gagnon-Bartsch and Yotam Shem-Tov, 2019). The purpose of this suite is to detect unintentional failures of random assignment, data fabrication, or simple covariate imbalance in random or, as-if random, designs. These tools are meant to work "off-the-shelf" but are also customizable for advanced users.'>
@@ -92,9 +92,9 @@
 <span><span class="co">#&gt; Treatment Effect Estimates</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   DiM:                          -0.1265  (SE:  0.1599)</span></span>
-<span><span class="co">#&gt;   IPW:                           0.5008  (SE:  0.1496)</span></span>
+<span><span class="co">#&gt;   IPW:                           0.5007  (SE:  0.1496)</span></span>
 <span><span class="co">#&gt;   Outcome-adjusted:              0.3941  (SE:  0.0796)</span></span>
-<span><span class="co">#&gt;   AIPW:                          0.8070  (SE:  0.0661)</span></span>
+<span><span class="co">#&gt;   AIPW:                          0.8071  (SE:  0.0661)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   OVERLAP WARNING: 16 observations have extreme propensity scores.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -102,7 +102,23 @@
 <p>One can quickly evaluate the output of the tests using the built in plot and summary functions.</p>
 <p>To plot, simply execute:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">b</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">b</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning in density(x, n = 2, range_only = TRUE, trim = trim, adjust = adjust, :</span></span>
+<span><span class="co">#&gt; partial argument match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in match.call(definition, call, expand.dots, envir): partial argument</span></span>
+<span><span class="co">#&gt; match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in density(x, n = 2, range_only = TRUE, trim = trim, adjust = adjust, :</span></span>
+<span><span class="co">#&gt; partial argument match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in match.call(definition, call, expand.dots, envir): partial argument</span></span>
+<span><span class="co">#&gt; match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in density(x, n = n, adjust = adjust, trim = trim, breaks = breaks, :</span></span>
+<span><span class="co">#&gt; partial argument match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in match.call(definition, call, expand.dots, envir): partial argument</span></span>
+<span><span class="co">#&gt; match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in density(x, n = n, adjust = adjust, trim = trim, breaks = breaks, :</span></span>
+<span><span class="co">#&gt; partial argument match of 'n' to 'na.rm'</span></span>
+<span><span class="co">#&gt; Warning in match.call(definition, call, expand.dots, envir): partial argument</span></span>
+<span><span class="co">#&gt; match of 'n' to 'na.rm'</span></span></code></pre></div>
 <p><img src="reference/figures/README-plot-1.png" alt="" width="100%"></p>
 <p>To summarize, simply execute:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
@@ -134,10 +150,10 @@
 <span><span class="co">#&gt;    Mean:                 0.4947      0.4966</span></span>
 <span><span class="co">#&gt;    SD:                   0.2207      0.0204</span></span>
 <span><span class="co">#&gt;    Min:                  0.1824      0.4302</span></span>
-<span><span class="co">#&gt;    Max:                  1.0077      0.5671</span></span>
+<span><span class="co">#&gt;    Max:                  1.0000      0.5671</span></span>
 <span><span class="co">#&gt;    ----------------------------------------</span></span>
-<span><span class="co">#&gt;    Diff. in means:      -0.0018</span></span>
-<span><span class="co">#&gt;    Ratio of SDs:        10.8183</span></span>
+<span><span class="co">#&gt;    Diff. in means:      -0.0019</span></span>
+<span><span class="co">#&gt;    Ratio of SDs:        10.8174</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; 3. INTERPRETATION</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
@@ -155,16 +171,16 @@
 <span><span class="co">#&gt;    Estimator                    Estimate        SE                95% CI</span></span>
 <span><span class="co">#&gt;    ---------------------------------------------------------------------</span></span>
 <span><span class="co">#&gt;    DiM                           -0.1265    0.1599  [ -0.4400,   0.1869]</span></span>
-<span><span class="co">#&gt;    IPW                            0.5008    0.1496  [  0.2077,   0.7940]</span></span>
+<span><span class="co">#&gt;    IPW                            0.5007    0.1496  [  0.2075,   0.7939]</span></span>
 <span><span class="co">#&gt;    Outcome-adjusted               0.3941    0.0796  [  0.2380,   0.5501]</span></span>
-<span><span class="co">#&gt;    AIPW                           0.8070    0.0661  [  0.6775,   0.9366]</span></span>
+<span><span class="co">#&gt;    AIPW                           0.8071    0.0661  [  0.6775,   0.9366]</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    OVERLAP WARNING: 16 observations have extreme propensity scores</span></span>
 <span><span class="co">#&gt;    (&lt; 0.05 or &gt; 0.95). Overlap-weighted estimates down-weight these:</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    Estimator                    Estimate        SE                95% CI</span></span>
 <span><span class="co">#&gt;    ---------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt;    IPW (OW)                       0.6671    0.1757  [  0.3227,   1.0116]</span></span>
+<span><span class="co">#&gt;    IPW (OW)                       0.6669    0.1757  [  0.3225,   1.0113]</span></span>
 <span><span class="co">#&gt;    Outcome-adj. (OW)              0.3931    0.0797  [  0.2368,   0.5493]</span></span>
 <span><span class="co">#&gt;    AIPW (OW)                      0.8825    0.0771  [  0.7313,   1.0337]</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -173,16 +189,16 @@
 <span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
 <span><span class="co">#&gt;    Comparison                    Difference   SE(diff)   z-stat   p-value</span></span>
 <span><span class="co">#&gt;    ----------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt;    DiM vs IPW                       -0.6274     0.0691   -9.084    0.0000 *</span></span>
+<span><span class="co">#&gt;    DiM vs IPW                       -0.6272     0.0691   -9.077    0.0000 *</span></span>
 <span><span class="co">#&gt;    DiM vs Outcome-adj.              -0.5206     0.1241   -4.195    0.0000 *</span></span>
-<span><span class="co">#&gt;    DiM vs AIPW                      -0.9336     0.1314   -7.106    0.0000 *</span></span>
-<span><span class="co">#&gt;    IPW vs AIPW                      -0.3062     0.1197   -2.557    0.0106 *</span></span>
+<span><span class="co">#&gt;    DiM vs AIPW                      -0.9336     0.1314   -7.107    0.0000 *</span></span>
+<span><span class="co">#&gt;    IPW vs AIPW                      -0.3064     0.1198   -2.558    0.0105 *</span></span>
 <span><span class="co">#&gt;    * p &lt; 0.05</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    Significant divergences:</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs IPW: The IPW estimate differs from the unadjusted DiM</span></span>
-<span><span class="co">#&gt;    by 0.6274 units (z = -9.084, p = 0.0000), indicating that propensity</span></span>
+<span><span class="co">#&gt;    by 0.6272 units (z = -9.077, p = 0.0000), indicating that propensity</span></span>
 <span><span class="co">#&gt;    reweighting accounts for this difference.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs Outcome-adjusted: The outcome-adjusted estimate differs from</span></span>
@@ -190,11 +206,11 @@
 <span><span class="co">#&gt;    that outcome regression adjustment accounts for this difference.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    DiM vs AIPW: The AIPW estimate differs from the unadjusted DiM</span></span>
-<span><span class="co">#&gt;    by 0.9336 units (z = -7.106, p = 0.0000), reflecting the combined</span></span>
+<span><span class="co">#&gt;    by 0.9336 units (z = -7.107, p = 0.0000), reflecting the combined</span></span>
 <span><span class="co">#&gt;    effect of propensity and outcome adjustment.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    IPW vs AIPW: Adding outcome regression to propensity reweighting</span></span>
-<span><span class="co">#&gt;    changes the estimate by 0.3062 units (z = -2.557, p = 0.0106),</span></span>
+<span><span class="co">#&gt;    changes the estimate by 0.3064 units (z = -2.558, p = 0.0105),</span></span>
 <span><span class="co">#&gt;    indicating that outcome modeling captures additional</span></span>
 <span><span class="co">#&gt;    covariate-outcome associations beyond reweighting.</span></span>
 <span><span class="co">#&gt; </span></span>

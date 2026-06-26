@@ -268,6 +268,6 @@ T <- rep(c(1, 2), each = n/2)
 result <- fastcpt(Z, T, class.methods = "forest", perm.N = 100)
 result$pval
 #>    forest 
-#> 0.2970297 
+#> 0.1485149 
 # }
 ```
