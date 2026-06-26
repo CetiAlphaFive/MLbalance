@@ -82,7 +82,12 @@ You can also use this to run an ensemble of classifiers:
 
 \item{object}{A balance result object (for summary method).}
 
-\item{which}{Character vector specifying which plots to create. Options are "pscores", "null_dist", "effects", or "all".}
+\item{which}{Character vector specifying which plots to create. Options are
+"pscores", "null_dist", "effects", or "all". For discrete treatment,
+"pscores" shows propensity-score overlap by treatment arm and "all" resolves
+to the propensity and (when \code{Y} was supplied) effects panels;
+"null_dist" is only available for continuous treatment (requesting it on a
+discrete object warns and skips it).}
 
 \item{combined}{Logical. If TRUE, displays all three plots in a combined panel. Default is TRUE.}
 
@@ -123,6 +128,13 @@ and AIPW (augmented inverse propensity weighting).
 
 Supports both binary and multi-arm treatments. For multi-arm treatments, pairwise comparisons
 are made between each treatment arm and the control group.
+
+Diagnostic plots for a fitted \code{balance} object. The propensity panel
+(\code{"pscores"}) is mode-dependent: for discrete treatment (the only mode
+currently supported) it shows propensity scores overlaid by treatment arm
+(control vs treated); the null-based panels (real-vs-null propensities and the
+permutation null distribution, \code{"null_dist"}) are reserved for a future
+continuous-treatment mode and are not shown for discrete treatment.
 }
 \examples{
 \donttest{

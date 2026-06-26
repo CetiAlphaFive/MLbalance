@@ -567,9 +567,15 @@ test_that("plot.balance works for multi-arm with Y", {
 
   pl_ps <- plot(res, which = "pscores")
   expect_true(inherits(pl_ps, "ggplot"))
+  # propensity overlap is drawn by treatment arm (control vs treated)
+  grps <- sort(unique(as.character(pl_ps$data$arm_group)))
+  expect_setequal(grps, c("Control", "Treated"))
 
-  pl_null <- plot(res, which = "null_dist")
-  expect_true(inherits(pl_null, "ggplot"))
+  # null_dist is continuous-only; on a discrete object it warns and is skipped
+  expect_warning(
+    plot(res, which = "null_dist"),
+    "only shown for continuous treatment"
+  )
 
   pl_eff <- plot(res, which = "effects")
   expect_true(inherits(pl_eff, "ggplot"))
@@ -589,11 +595,13 @@ test_that("plot.balance multi-arm without Y skips effects", {
     res <- balance(Y = NULL, W = W, X = X, control = "Ctrl", perm.N = 50)
   })
 
-  # "all" should resolve to just pscores + null_dist
+  # discrete "all" resolves to just pscores (no Y -> no effects, null_dist suppressed)
   expect_warning(
     plot(res, which = "effects"),
     "Outcome Y not provided"
   )
+  pl_all <- plot(res, which = "all")
+  expect_true(inherits(pl_all, "ggplot"))
 })
 
 # ============================================================================

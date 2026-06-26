@@ -23,6 +23,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Jack T. Rametta \email{jtrametta@gmail.com}
   \item Sam Fuller \email{sfuller@fas.harvard.edu}
 }
 

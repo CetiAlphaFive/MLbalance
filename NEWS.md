@@ -2,6 +2,7 @@
 
 * Removed `fastcpt3()` and the `mlr3` / `mlr3learners` dependency. Added native `rpart`, `lda`, and `qda` backends to `fastcpt()` (all optional Suggests).
 * Bug fix in `fastcpt(paired = TRUE)`: now errors clearly on multi-class treatments and on unequal group sizes. Previously these cases silently produced invalid permutations (multi-class rows untouched; binary unequal-size groups recycled from `rbinom(length(T)/2, ...)`).
+* `plot.balance()`: for discrete treatment, the propensity-score panel now overlays scores by treatment arm (control vs treated) instead of real-vs-permuted-null. The classification permutation test null-distribution panel is no longer shown for discrete treatment (reserved for future continuous-treatment support); `which = "null_dist"` now warns and is skipped for discrete objects, and `which = "all"` resolves to the propensity + effects panels.
 
 # MLbalance 0.2
 

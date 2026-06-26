@@ -195,8 +195,14 @@ test_that("balance plot returns ggplot for different which values", {
 
   res <- balance(Y, W, X, perm.N = 50)
 
-  pl_null <- plot(res, which = "null_dist")
-  expect_s3_class(pl_null, "ggplot")
+  # null_dist is continuous-only; on a discrete object it warns and is skipped
+  expect_warning(
+    plot(res, which = "null_dist"),
+    "only shown for continuous treatment"
+  )
+
+  pl_ps <- plot(res, which = "pscores")
+  expect_s3_class(pl_ps, "ggplot")
 
   pl_effects <- plot(res, which = "effects")
   expect_s3_class(pl_effects, "ggplot")
@@ -204,6 +210,22 @@ test_that("balance plot returns ggplot for different which values", {
   pl_all <- plot(res, which = "all")
   # combined plot returns patchwork
   expect_true(inherits(pl_all, "ggplot") || inherits(pl_all, "patchwork"))
+})
+
+test_that("binary pscores plot overlays both arm groups", {
+  set.seed(1995)
+  n <- 200
+  p <- 5
+  X <- matrix(rnorm(n * p), n, p)
+  W <- rbinom(n, 1, 0.5)
+  Y <- W * 0.5 + rnorm(n)
+
+  res <- balance(Y, W, X, perm.N = 50)
+  pl <- plot(res, which = "pscores")
+
+  expect_s3_class(pl, "ggplot")
+  grps <- sort(unique(as.character(pl$data$arm_group)))
+  expect_setequal(grps, c("Control", "Treated"))
 })
 
 test_that("balance known-DGP correctness check", {
