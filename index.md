@@ -91,6 +91,14 @@ b |> plot()
 #> partial argument match of 'n' to 'na.rm'
 #> Warning in match.call(definition, call, expand.dots, envir): partial argument
 #> match of 'n' to 'na.rm'
+#> Warning in density(x, n = 2, range_only = TRUE, trim = trim, adjust = adjust, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
+#> Warning in density(x, n = n, adjust = adjust, trim = trim, breaks = breaks, :
+#> partial argument match of 'n' to 'na.rm'
+#> Warning in match.call(definition, call, expand.dots, envir): partial argument
+#> match of 'n' to 'na.rm'
 ```
 
 ![](reference/figures/README-plot-1.png)
