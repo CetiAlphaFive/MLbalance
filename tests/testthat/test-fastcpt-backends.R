@@ -140,3 +140,21 @@ test_that("forest tolerates classifier.args = NULL", {
   expect_s3_class(res, "fastcpt")
   expect_true(is.numeric(res$pvals[["forest"]]))
 })
+
+test_that("default forest run returns a valid, in-range p-value", {
+  set.seed(1995)
+  Z <- matrix(rnorm(200 * 5), 200, 5); W <- rep(c(0, 1), each = 100)
+  res <- fastcpt(Z, W, class.methods = "forest", perm.N = 50, progress = FALSE)
+  expect_true(is.numeric(res$pvals[["forest"]]))
+  expect_gte(res$pvals[["forest"]], 0)
+  expect_lte(res$pvals[["forest"]], 1)
+})
+
+test_that("default forest (extratrees) falls back to gini on NA in Z", {
+  set.seed(1995)
+  Z <- matrix(rnorm(200 * 5), 200, 5); Z[1, 1] <- NA
+  W <- rep(c(0, 1), each = 100)
+  res <- suppressWarnings(fastcpt(Z, W, class.methods = "forest", perm.N = 30, progress = FALSE))
+  expect_s3_class(res, "fastcpt")
+  expect_true(is.numeric(res$pvals[["forest"]]) && !is.na(res$pvals[["forest"]]))
+})

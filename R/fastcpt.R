@@ -550,22 +550,30 @@ function (method, classifier.args = list(), leaveout = 0)
     if (method == "forest") {
         ranger_keys <- names(formals(ranger::ranger))
         user_args <- as.list(classifier.args[intersect(names(classifier.args), ranger_keys)])
-        # write.forest is code-owned (set from leaveout); don't let users override it
         user_args <- user_args[setdiff(names(user_args), "write.forest")]
+        user_set_splitrule <- "splitrule" %in% names(user_args)
         forest_defaults <- list(
-            num.trees    = 500L,                 # statistical default unchanged
-            write.forest = (leaveout != 0)       # OOB path (leaveout==0) needs no stored forest
+            num.trees         = 100L,
+            splitrule         = "extratrees",
+            num.random.splits = 1L,
+            write.forest      = (leaveout != 0)   # OOB path (leaveout==0) needs no stored forest
         )
         ranger_args <- utils::modifyList(forest_defaults, user_args)
-        # fixed args (set below) own these keys; drop any user attempt to supply them
         ranger_args <- ranger_args[setdiff(names(ranger_args),
                           c("formula", "data", "probability", "num.threads", "x", "y"))]
         rval = function(Z, T) {
             n_threads <- getOption("fastcpt.num.threads", parallel::detectCores() - 1L)
+            args_i <- ranger_args
+            # ranger's extratrees splitrule cannot handle missing values; fall back to
+            # gini (NA-capable) when the data has NAs and the user did not pick a splitrule.
+            if (!user_set_splitrule && identical(args_i$splitrule, "extratrees") && anyNA(Z)) {
+                args_i$splitrule <- "gini"
+                args_i$num.random.splits <- NULL
+            }
             do.call(ranger::ranger, c(
                 list(formula = T ~ ., data = data.frame(T = T, Z),
                      probability = TRUE, num.threads = n_threads),
-                ranger_args))
+                args_i))
         }
     }
     else if (method == "ferns") {
