@@ -182,12 +182,24 @@ print(x, ...)
 
   Optional named list of hyperparameters forwarded to the classifier
   training functions. Supported keys: `num.trees` (for ranger forest,
-  default 500), `ferns` (number of ferns for rFerns, default 500),
+  default 100), `ferns` (number of ferns for rFerns, default 500),
   `depth` (fern depth for rFerns, default 5), `nfolds` (for cv.glmnet,
   default 5), `alpha` (elastic net mixing for cv.glmnet, default 0.5),
   `cp` (rpart complexity parameter, default 0.01), `minbucket` (rpart
   minimum leaf size, default 7). LDA and QDA take no tunable
-  hyperparameters in this wrapper.
+  hyperparameters in this wrapper. For `class.methods = "forest"`, any
+  argument accepted by
+  [`ranger::ranger`](http://imbs-hl.github.io/ranger/reference/ranger.md)
+  may additionally be supplied (e.g. `splitrule`, `num.random.splits`,
+  `min.node.size`, `sample.fraction`, `replace`); keys not recognized by
+  `ranger` are ignored for the forest backend. The forest backend
+  defaults to 100 extremely-randomized trees
+  (`splitrule = "extratrees"`, `num.random.splits = 1`); it
+  automatically falls back to `splitrule = "gini"` when the data contain
+  missing values (extratrees cannot handle `NA`) and the user has not
+  set a splitrule. `write.forest` is managed automatically and cannot be
+  overridden: it is `FALSE` when `leaveout = 0` (the out-of-bag path
+  stores no forest) and `TRUE` otherwise.
 
 - x:
 
@@ -268,6 +280,6 @@ T <- rep(c(1, 2), each = n/2)
 result <- fastcpt(Z, T, class.methods = "forest", perm.N = 100)
 result$pval
 #>    forest 
-#> 0.1386139 
+#> 0.1188119 
 # }
 ```

@@ -37,7 +37,7 @@ Supported classifiers (class.methods):
 
     <a class="navbar-brand me-2" href="../index.html">MLbalance</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -192,12 +192,23 @@ Defaults to <code><a href="https://rdrr.io/r/base/interactive.html" class="exter
 <dt id="arg-classifier-args">classifier.args<a class="anchor" aria-label="anchor" href="#arg-classifier-args"></a></dt>
 <dd><p>Optional named list of hyperparameters forwarded to the
 classifier training functions. Supported keys: <code>num.trees</code> (for ranger forest,
-default 500), <code>ferns</code> (number of ferns for rFerns, default 500),
+default 100), <code>ferns</code> (number of ferns for rFerns, default 500),
 <code>depth</code> (fern depth for rFerns, default 5), <code>nfolds</code> (for cv.glmnet,
 default 5), <code>alpha</code> (elastic net mixing for cv.glmnet, default 0.5),
 <code>cp</code> (rpart complexity parameter, default 0.01), <code>minbucket</code>
 (rpart minimum leaf size, default 7). LDA and QDA take no tunable
-hyperparameters in this wrapper.</p></dd>
+hyperparameters in this wrapper.
+For <code>class.methods = "forest"</code>, any argument accepted by
+<code><a href="http://imbs-hl.github.io/ranger/reference/ranger.html" class="external-link">ranger::ranger</a></code> may additionally be supplied (e.g. <code>splitrule</code>,
+<code>num.random.splits</code>, <code>min.node.size</code>, <code>sample.fraction</code>,
+<code>replace</code>); keys not recognized by <code>ranger</code> are ignored for the
+forest backend. The forest backend defaults to 100 extremely-randomized trees
+(<code>splitrule = "extratrees"</code>, <code>num.random.splits = 1</code>); it
+automatically falls back to <code>splitrule = "gini"</code> when the data contain
+missing values (extratrees cannot handle <code>NA</code>) and the user has not set a
+splitrule. <code>write.forest</code> is managed automatically and cannot be
+overridden: it is <code>FALSE</code> when <code>leaveout = 0</code> (the out-of-bag path
+stores no forest) and <code>TRUE</code> otherwise.</p></dd>
 
 
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
@@ -267,7 +278,7 @@ hyperparameters in this wrapper.</p></dd>
 <span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu">fastcpt</span><span class="op">(</span><span class="va">Z</span>, <span class="cn">T</span>, class.methods <span class="op">=</span> <span class="st">"forest"</span>, perm.N <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">pval</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    forest </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 0.1386139 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 0.1188119 </span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

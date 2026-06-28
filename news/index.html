@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">MLbalance</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,14 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.1" id="mlbalance-021">MLbalance 0.2.1<a class="anchor" aria-label="anchor" href="#mlbalance-021"></a></h2>
+<ul><li>
+<code><a href="../reference/fastcpt.html">fastcpt()</a></code> forest backend (<code>class.methods = "forest"</code>) now defaults to 100 extremely-randomized trees (<code>splitrule = "extratrees"</code>), ~5x faster than the previous 500-tree gini default with equivalent size and power (validated over 6 core + 3 realistic DGPs at <code>perm.N = 1000</code>). It auto-falls back to <code>gini</code> when the data contain <code>NA</code> (extratrees cannot handle missing values).</li>
+<li>Any <code><a href="http://imbs-hl.github.io/ranger/reference/ranger.html" class="external-link">ranger::ranger</a></code> argument can now be forwarded via <code>classifier.args</code> (e.g. <code>splitrule</code>, <code>num.random.splits</code>, <code>min.node.size</code>, <code>sample.fraction</code>).</li>
+<li>
+<code>write.forest</code> is skipped in the out-of-bag path (<code>leaveout = 0</code>) for speed; the leave-out predict path now restores trained column names before prediction (fixes a pre-existing failure with unnamed covariate matrices).</li>
+</ul></div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2" id="mlbalance-02">MLbalance 0.2<a class="anchor" aria-label="anchor" href="#mlbalance-02"></a></h2>
 <ul><li>Initial CRAN submission.</li>
 <li>
@@ -43,7 +51,8 @@
 <li>
 <code><a href="../reference/vip.html">vip()</a></code>: variable importance convenience function for grf model objects.</li>
 </ul></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="index.html">MLbalance</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,10 @@
 <p>MLbalance (v0.2) provides ML-based covariate balance tests and causal effect estimation for experimental and observational data. The core tool is a fast classification permutation test (CPT) based on Gagnon-Bartsch &amp; Shem-Tov (2019). If a classifier can distinguish treated from control units better than chance, balance fails. The package also estimates ATEs using four approaches: difference-in-means (DiM), inverse propensity weighted (IPW), outcome-adjusted, and AIPW (doubly robust) (all via <code>grf</code>).</p>
 </div>
 <div class="section level2">
+<h2 id="repository-orientation">Repository Orientation<a class="anchor" aria-label="anchor" href="#repository-orientation"></a></h2>
+<p>This dir (<code>package_exp/MLbalance/</code>) is the <strong>active git repo and CRAN-track copy</strong> — edit here. Do NOT confuse with sibling copies under the parent project: <code>package_push/MLbalance</code> (older, no test suite) and <code>package_push/MLbalance_exp/MLbalance</code>. The parent project root holds the paper + replication materials (separate <code>CLAUDE.md</code>), not package source.</p>
+</div>
+<div class="section level2">
 <h2 id="build-and-test-commands">Build and Test Commands<a class="anchor" aria-label="anchor" href="#build-and-test-commands"></a></h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Check package (full R CMD check)</span></span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD check MLbalance_<span class="pp">*</span>.tar.gz</span>
@@ -60,6 +64,10 @@
 <p>Tests are slow (each <code><a href="reference/balance.html">balance()</a></code> test fits multiple boosted forests). Use <code>perm.N = 50</code> and <code>n &lt;= 250</code> in tests.</p>
 </div>
 <div class="section level2">
+<h2 id="test-suite">Test Suite<a class="anchor" aria-label="anchor" href="#test-suite"></a></h2>
+<p>testthat 3, six files under <code>tests/testthat/</code> (entry point <code>tests/testthat.R</code> → <code>test_check("MLbalance")</code>): - <code>test-fastcpt.R</code> — engine: returned structure, p-value, null distribution. - <code>test-fastcpt-backends.R</code> — optional backends (rpart/lda/qda), gated by Suggests + <code>requireNamespace</code>. - <code>test-balance.R</code> — <code><a href="reference/balance.html">balance()</a></code> with and without outcome <code>Y</code>; ATE estimators. - <code>test-random_check.R</code> — <code><a href="reference/random_check.html">random_check()</a></code> structure and <code><a href="reference/vip.html">vip()</a></code>. - <code>test-coverage.R</code> — internal helpers (e.g. <code>.make_ci</code> confidence intervals). - <code>test-adversarial.R</code> — hostile/edge inputs (e.g. character treatment labels, NAs in <code>X</code>, unequal group sizes).</p>
+</div>
+<div class="section level2">
 <h2 id="architecture">Architecture<a class="anchor" aria-label="anchor" href="#architecture"></a></h2>
 <p>Three-layer design, each layer an S3 class:</p>
 <ol style="list-style-type: decimal"><li><p><strong><code>fastcpt(Z, T, ...)</code></strong> (<code>R/fastcpt.R</code>) — The permutation test engine. Trains classifiers (ferns, ranger forest, glmnet elastic net, linear probability, rpart, LDA, or QDA) on real treatment labels, then on <code>perm.N</code> permuted labels to build a null distribution. Returns p-value, test statistic, and null distribution. Supports <code>parallel = TRUE</code> via <code>mirai</code>. S3 methods in <code>R/fastcpt.plot.R</code>. The three new backends (rpart, lda, qda) are gated by Suggests + <code>requireNamespace</code>.</p></li>
@@ -79,11 +87,15 @@
 <strong>Multi-arm treatment</strong>: Joint K-class CPT on full data, then pairwise binary comparisons vs control for estimation. The <code>control</code> argument determines the reference level.</li>
 <li>
 <strong>Overlap diagnostics</strong>: When propensity scores are &lt; 0.05 or &gt; 0.95, overlap-weighted estimates (Li, Morgan &amp; Zaslavsky, 2018) are automatically computed via <code>grf::average_treatment_effect(target.sample = "overlap")</code>.</li>
+<li>
+<strong>Propensity clamp</strong>: pscores come from a <em>regression</em> forest, so they can exit [0,1] under strong covariate–treatment association. <code><a href="reference/balance.html">balance()</a></code> clamps to <code>[eps, 1-eps]</code> (warning emitted, raw range reported) — without it IPW/AIPW go NaN. Separately, scores outside <code>overlap.threshold</code> (default <code>c(0.05, 0.95)</code>) trigger overlap-weighted (OW) fallback estimates. Return fields: <code>overlap_flag</code>, <code>n_extreme</code>, <code>overlap</code>.</li>
+<li>
+<strong>Paired test</strong>: <code>fastcpt(paired = TRUE)</code> errors on multi-class treatments and unequal group sizes (previously silently produced invalid permutations). <code>fastcpt3()</code> and the mlr3 backend were removed.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="dependencies">Dependencies<a class="anchor" aria-label="anchor" href="#dependencies"></a></h2>
-<p><strong>Imports</strong>: distributional, estimatr, grf, ggdist, ggplot2, ranger, rFerns <strong>Suggests</strong>: patchwork, mirai, glmnet, rpart, MASS, testthat</p>
-<p><code>grf</code> is the heaviest dependency — used for boosted regression forests (propensity/outcome) and causal forests (ATE estimation).</p>
+<p><strong>Imports</strong>: estimatr, grf, ranger, rFerns <strong>Suggests</strong>: distributional, ggdist, ggplot2, patchwork, mirai, glmnet, rpart, MASS, knitr, rmarkdown, tibble, withr, testthat</p>
+<p><code>grf</code> is the heaviest dependency — boosted regression forests (propensity/outcome) and causal forests (ATE). Plotting/distribution deps (ggplot2, ggdist, distributional, patchwork) are <strong>Suggests, not Imports</strong> — plot/summary code must guard them with <code><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace()</a></code>. Classifier backends (glmnet, rpart, MASS) and the <code>mirai</code> parallel backend are optional too.</p>
 </div>
 <div class="section level2">
 <h2 id="code-conventions">Code Conventions<a class="anchor" aria-label="anchor" href="#code-conventions"></a></h2>
@@ -94,6 +106,13 @@
 <li>
 <code>exportPattern("^[[:alpha:]]+")</code> is NOT used — exports are explicit in NAMESPACE</li>
 <li>testthat 3 edition</li>
+</ul></div>
+<div class="section level2">
+<h2 id="docs--release">Docs &amp; Release<a class="anchor" aria-label="anchor" href="#docs--release"></a></h2>
+<ul><li>Vignette: <code>vignettes/MLbalance-workflow.Rmd</code> (knitr); long-form <code>balance.explainer.Rmd</code> at pkg root.</li>
+<li>pkgdown site: <code>_pkgdown.yml</code> → <code>docs/</code>. Rebuild with <code><a href="https://pkgdown.r-lib.org/reference/build_site.html" class="external-link">pkgdown::build_site()</a></code>.</li>
+<li>
+<code>NEWS.md</code> tracks changes; <code>cran-comments.md</code> is the CRAN submission cover. Keep <code>R CMD check</code> CRAN-clean.</li>
 </ul></div>
 </div>
 
