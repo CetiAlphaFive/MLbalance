@@ -1,7 +1,7 @@
 Package: MLbalance
 Type: Package
 Title: Machine Learning Balance
-Version: 0.2
+Version: 0.2.1
 Authors@R: c(person(c("Jack", "T."), "Rametta", email = "jtrametta@gmail.com",
                   role = c("aut", "cre")),
              person("Sam", "Fuller", email = "sfuller@fas.harvard.edu",
