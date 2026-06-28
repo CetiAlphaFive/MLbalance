@@ -47,6 +47,13 @@ utils::globalVariables(c("pkgs"))
 #'   \code{cp} (rpart complexity parameter, default 0.01), \code{minbucket}
 #'   (rpart minimum leaf size, default 7). LDA and QDA take no tunable
 #'   hyperparameters in this wrapper.
+#'   For \code{class.methods = "forest"}, any argument accepted by
+#'   \code{ranger::ranger} may additionally be supplied (e.g. \code{splitrule},
+#'   \code{num.random.splits}, \code{min.node.size}, \code{sample.fraction},
+#'   \code{replace}); keys not recognized by \code{ranger} are ignored for the
+#'   forest backend. \code{write.forest} is managed automatically and cannot be
+#'   overridden: it is \code{FALSE} when \code{leaveout = 0} (the out-of-bag path
+#'   stores no forest) and \code{TRUE} otherwise.
 #' @param clusters Optional vector of cluster identifiers (same length as \code{T}). When provided, permutations shuffle treatment labels at the cluster level rather than the individual level. Treatment must be constant within each cluster.
 #' @param blocks Optional vector of block identifiers (same length as \code{T}). When provided, permutations are restricted to within each block. Cannot be used together with \code{paired}.
 #'

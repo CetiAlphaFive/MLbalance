@@ -80,7 +80,14 @@ default 500), \code{ferns} (number of ferns for rFerns, default 500),
 default 5), \code{alpha} (elastic net mixing for cv.glmnet, default 0.5),
 \code{cp} (rpart complexity parameter, default 0.01), \code{minbucket}
 (rpart minimum leaf size, default 7). LDA and QDA take no tunable
-hyperparameters in this wrapper.}
+hyperparameters in this wrapper.
+For \code{class.methods = "forest"}, any argument accepted by
+\code{ranger::ranger} may additionally be supplied (e.g. \code{splitrule},
+\code{num.random.splits}, \code{min.node.size}, \code{sample.fraction},
+\code{replace}); keys not recognized by \code{ranger} are ignored for the
+forest backend. \code{write.forest} is managed automatically and cannot be
+overridden: it is \code{FALSE} when \code{leaveout = 0} (the out-of-bag path
+stores no forest) and \code{TRUE} otherwise.}
 
 \item{x}{A fastcpt result object (for plot and print methods).}
 
