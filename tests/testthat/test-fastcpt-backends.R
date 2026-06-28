@@ -97,3 +97,46 @@ test_that("fastcpt errors clearly when backend pkg missing", {
 test_that(".gettrainmethod accepts a leaveout argument", {
   expect_silent(MLbalance:::.gettrainmethod("forest", list(), leaveout = 0))
 })
+
+test_that("forest forwards ranger args from classifier.args (splitrule)", {
+  set.seed(1995)
+  Z <- matrix(rnorm(200 * 5), 200, 5); W <- rep(c(0, 1), each = 100)
+  res <- fastcpt(Z, W, class.methods = "forest", perm.N = 50, progress = FALSE,
+                 classifier.args = list(splitrule = "extratrees", num.random.splits = 1L))
+  expect_s3_class(res, "fastcpt")
+  expect_true(is.numeric(res$pvals[["forest"]]) && !is.na(res$pvals[["forest"]]))
+})
+
+test_that("forest ignores non-ranger classifier.args keys", {
+  set.seed(1995)
+  Z <- matrix(rnorm(200 * 5), 200, 5); W <- rep(c(0, 1), each = 100)
+  res <- fastcpt(Z, W, class.methods = "forest", perm.N = 50, progress = FALSE,
+                 classifier.args = list(num.trees = 50L, ferns = 999L, depth = 7L))
+  expect_s3_class(res, "fastcpt")
+  expect_true(is.numeric(res$pvals[["forest"]]))
+})
+
+test_that("forest leaveout>0 path still works (write.forest=TRUE branch)", {
+  set.seed(1995)
+  Z <- matrix(rnorm(120 * 4), 120, 4); W <- rep(c(0, 1), each = 60)
+  res <- fastcpt(Z, W, class.methods = "forest", perm.N = 30, progress = FALSE,
+                 leaveout = 1, leaveout.N = 30)
+  expect_s3_class(res, "fastcpt")
+  expect_true(is.numeric(res$pvals[["forest"]]))
+})
+
+test_that("forest pval is reproducible across identical calls", {
+  Z <- matrix(rnorm(200 * 5), 200, 5); W <- rep(c(0, 1), each = 100)
+  p1 <- fastcpt(Z, W, class.methods = "forest", perm.N = 50, progress = FALSE)$pvals[["forest"]]
+  p2 <- fastcpt(Z, W, class.methods = "forest", perm.N = 50, progress = FALSE)$pvals[["forest"]]
+  expect_identical(p1, p2)
+})
+
+test_that("forest tolerates classifier.args = NULL", {
+  set.seed(1995)
+  Z <- matrix(rnorm(200 * 5), 200, 5); W <- rep(c(0, 1), each = 100)
+  res <- fastcpt(Z, W, class.methods = "forest", perm.N = 30,
+                 progress = FALSE, classifier.args = NULL)
+  expect_s3_class(res, "fastcpt")
+  expect_true(is.numeric(res$pvals[["forest"]]))
+})

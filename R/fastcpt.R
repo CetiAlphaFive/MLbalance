@@ -413,7 +413,9 @@ function (method)
         rval = function(Z, classifier, testistrain = FALSE) {
             if (testistrain)
                 return(classifier$predictions)
-            else return(stats::predict(classifier, Z)$predictions)
+            if (is.null(colnames(Z)))
+                colnames(Z) <- classifier$forest$independent.variable.names
+            return(stats::predict(classifier, Z)$predictions)
         }
     }
     else if (method == "ferns") {
@@ -539,10 +541,24 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
 function (method, classifier.args = list(), leaveout = 0)
 {
     if (method == "forest") {
-        n_trees <- if (!is.null(classifier.args$num.trees)) classifier.args$num.trees else 500L
+        ranger_keys <- names(formals(ranger::ranger))
+        user_args <- as.list(classifier.args[intersect(names(classifier.args), ranger_keys)])
+        # write.forest is code-owned (set from leaveout); don't let users override it
+        user_args <- user_args[setdiff(names(user_args), "write.forest")]
+        forest_defaults <- list(
+            num.trees    = 500L,                 # statistical default unchanged
+            write.forest = (leaveout != 0)       # OOB path (leaveout==0) needs no stored forest
+        )
+        ranger_args <- utils::modifyList(forest_defaults, user_args)
+        # fixed args (set below) own these keys; drop any user attempt to supply them
+        ranger_args <- ranger_args[setdiff(names(ranger_args),
+                          c("formula", "data", "probability", "num.threads", "x", "y"))]
         rval = function(Z, T) {
             n_threads <- getOption("fastcpt.num.threads", parallel::detectCores() - 1L)
-            return(ranger::ranger(T ~ ., data = data.frame(T = T, Z), probability = TRUE, num.trees = n_trees, num.threads = n_threads))
+            do.call(ranger::ranger, c(
+                list(formula = T ~ ., data = data.frame(T = T, Z),
+                     probability = TRUE, num.threads = n_threads),
+                ranger_args))
         }
     }
     else if (method == "ferns") {
