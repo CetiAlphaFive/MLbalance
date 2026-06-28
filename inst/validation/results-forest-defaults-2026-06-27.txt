@@ -1,0 +1,24 @@
+VALIDATION current(500,gini) vs fast(100,extratrees)  perm.N=1000 reps=10 p=10 delta_alt=0.75 a=0.05
+rate = rejection rate (size if null/null_unequal, else power)
+core      interaction  n=100   [power]  current=0.00  fast=0.00  (mean_p 0.466/0.414)  sec 55.6/16.3
+core      interaction  n=500   [power]  current=0.50  fast=0.60  (mean_p 0.088/0.077)  sec 523.7/83.1
+core      linear       n=100   [power]  current=0.50  fast=0.60  (mean_p 0.160/0.170)  sec 55.6/16.3
+core      linear       n=500   [power]  current=1.00  fast=1.00  (mean_p 0.001/0.001)  sec 521.6/82.9
+core      multi        n=100   [power]  current=0.30  fast=0.40  (mean_p 0.149/0.133)  sec 55.6/16.2
+core      multi        n=500   [power]  current=1.00  fast=1.00  (mean_p 0.002/0.002)  sec 523.2/83.3
+core      nonlinear    n=100   [power]  current=0.40  fast=0.50  (mean_p 0.199/0.225)  sec 55.9/16.2
+core      nonlinear    n=500   [power]  current=1.00  fast=1.00  (mean_p 0.001/0.001)  sec 524.6/83.2
+core      null         n=100   [size]  current=0.10  fast=0.10  (mean_p 0.386/0.446)  sec 48.3/12.6
+core      null         n=500   [size]  current=0.10  fast=0.00  (mean_p 0.474/0.473)  sec 513.7/80.0
+core      null_unequal n=100   [size]  current=0.10  fast=0.10  (mean_p 0.486/0.496)  sec 53.3/15.5
+core      null_unequal n=500   [size]  current=0.00  fast=0.00  (mean_p 0.500/0.464)  sec 504.4/81.0
+realistic interaction  n=500   [power]  current=0.70  fast=0.70  (mean_p 0.109/0.059)  sec 332.9/80.5
+realistic nonlinear    n=500   [power]  current=1.00  fast=0.90  (mean_p 0.001/0.008)  sec 333.1/80.8
+realistic null         n=500   [size]  current=0.10  fast=0.00  (mean_p 0.493/0.492)  sec 285.3/80.1
+
+speed: current 292.5s/call, fast 55.2s/call -> 5.30x
+
+GATE CHECK (reps=10, coarse): max size (either cfg) = 0.10 ; worst power drop (current-fast) = 0.10 ; fast NA pvals = 0
+heuristic: LEAN GO  (size<=0.20, power_drop<=0.15, no NA)
+
+run complete
