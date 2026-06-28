@@ -151,7 +151,7 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
 
     T = as.factor(T)
     set.seed(R.seed)
-    train.methods = .gettrainmethods(class.methods, classifier.args)
+    train.methods = .gettrainmethods(class.methods, classifier.args, leaveout)
     test.methods = .gettestmethods(class.methods)
     metric_name <- if (is.character(metric)) metric else "custom"
     if (is.character(metric))
@@ -536,7 +536,7 @@ function (Z, T, leaveout, train.methods, test.methods, metric,
 #' @keywords internal
 #' @noRd
 .gettrainmethod <-
-function (method, classifier.args = list())
+function (method, classifier.args = list(), leaveout = 0)
 {
     if (method == "forest") {
         n_trees <- if (!is.null(classifier.args$num.trees)) classifier.args$num.trees else 500L
@@ -607,10 +607,10 @@ function (method, classifier.args = list())
 #' @keywords internal
 #' @noRd
 .gettrainmethods <-
-function (class.methods, classifier.args = list())
+function (class.methods, classifier.args = list(), leaveout = 0)
 {
     train.methods = list()
-    for (i in seq_along(class.methods)) train.methods[[i]] = .gettrainmethod(class.methods[i], classifier.args)
+    for (i in seq_along(class.methods)) train.methods[[i]] = .gettrainmethod(class.methods[i], classifier.args, leaveout)
     return(train.methods)
 }
 

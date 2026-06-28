@@ -93,3 +93,7 @@ test_that("fastcpt errors clearly when backend pkg missing", {
   # guard) and is covered by code review.
   skip("Requires package mocking; covered manually via DESCRIPTION inspection.")
 })
+
+test_that(".gettrainmethod accepts a leaveout argument", {
+  expect_silent(MLbalance:::.gettrainmethod("forest", list(), leaveout = 0))
+})
