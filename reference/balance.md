@@ -283,7 +283,7 @@ result
 #> Balance Assessment
 #> ------------------------------------------------------------
 #>   Control:  '0'
-#>   Balance:  p = 0.3586  [PASS]
+#>   Balance:  p = 0.3546  [PASS]
 #> 
 #> Treatment Effect Estimates
 #> ------------------------------------------------------------
@@ -310,9 +310,9 @@ summary(result)
 #> ------------------------------------------------------------------------
 #>    Classifier:          ferns
 #>    Permutations:        1000
-#>    Test statistic:      0.5116
-#>    Null mean (SD):      0.5009 (0.0275)
-#>    P-value:             0.3586
+#>    Test statistic:      0.5140
+#>    Null mean (SD):      0.5009 (0.0285)
+#>    P-value:             0.3546
 #>    Alpha:               0.05
 #>    Result:              PASS
 #> 

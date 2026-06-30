@@ -31,7 +31,7 @@ fastcpt(
   T,
   leaveout = 0,
   class.methods = "ferns",
-  metric = "probability",
+  metric = NULL,
   ensemble.metric = "mean.prob",
   paired = FALSE,
   clusters = NULL,
@@ -88,8 +88,12 @@ print(x, ...)
 
 - metric:
 
-  Which test statistic to use. Can be "rate", "mse", "logscore", or
-  "probability" (default, recommended).
+  Which test statistic to use. Can be "rate" (classification accuracy),
+  "mse", "logscore", or "probability". If left `NULL` (the default) the
+  metric is auto-selected: out-of-bag backends ("forest" and "ferns") at
+  `leaveout = 0` use "rate" (the out-of-bag classification accuracy
+  rate), and every other case uses the softer, recommended
+  "probability". Pass an explicit value to override.
 
 - ensemble.metric:
 
@@ -279,7 +283,7 @@ T <- rep(c(1, 2), each = n/2)
 # Run fast classification permutation test
 result <- fastcpt(Z, T, class.methods = "forest", perm.N = 100)
 result$pval
-#>    forest 
-#> 0.1188119 
+#>     forest 
+#> 0.06930693 
 # }
 ```

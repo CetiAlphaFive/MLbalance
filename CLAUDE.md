@@ -5,14 +5,14 @@ with code in this repository.
 
 ## What This Package Does
 
-MLbalance (v0.2) provides ML-based covariate balance tests and causal
+MLbalance (v0.2.1) provides ML-based covariate balance tests and causal
 effect estimation for experimental and observational data. The core tool
 is a fast classification permutation test (CPT) based on Gagnon-Bartsch
 & Shem-Tov (2019). If a classifier can distinguish treated from control
 units better than chance, balance fails. The package also estimates ATEs
-using four approaches: difference-in-means (DiM), inverse propensity
-weighted (IPW), outcome-adjusted, and AIPW (doubly robust) (all via
-`grf`).
+using four approaches: difference-in-means (DiM, via `estimatr`), and
+inverse propensity weighted (IPW), outcome-adjusted, and AIPW (doubly
+robust) (these three via `grf`).
 
 ## Repository Orientation
 
@@ -82,15 +82,18 @@ Three-layer design, each layer an S3 class:
 2.  **`balance(Y, W, X, ...)`** (`R/balance.R`) — The main user-facing
     function. Calls
     [`fastcpt()`](https://cetialphafive.github.io/MLbalance/reference/fastcpt.md)
-    for the balance test, then fits
-    [`grf::boosted_regression_forest`](https://rdrr.io/pkg/grf/man/boosted_regression_forest.html)
-    for propensity/outcome models and
+    for the balance test, then for ATE estimation: DiM via
+    [`estimatr::difference_in_means`](https://declaredesign.org/r/estimatr/reference/difference_in_means.html)
+    (clusters/blocks aware), and IPW / outcome-adjusted / AIPW via three
+    separate
     [`grf::causal_forest`](https://rdrr.io/pkg/grf/man/causal_forest.html)
-    for ATE estimation (DiM, IPW, outcome-adjusted, AIPW). Handles
-    multi-arm treatments via pairwise comparisons against a control
-    level, with a joint K-class CPT. Detects extreme propensity scores
-    and provides overlap-weighted (OW) fallback estimates. Returns S3
-    class “balance” with print/summary/plot methods.
+    fits + `grf::average_treatment_effect(target.sample = "all")`
+    (propensity/outcome models are
+    [`grf::boosted_regression_forest`](https://rdrr.io/pkg/grf/man/boosted_regression_forest.html)).
+    Handles multi-arm treatments via pairwise comparisons against a
+    control level, with a joint K-class CPT. Detects extreme propensity
+    scores and provides overlap-weighted (OW) fallback estimates.
+    Returns S3 class “balance” with print/summary/plot methods.
 
 3.  **`random_check(W_real, X, ...)`** (`R/random_check.R`) —
     Lightweight diagnostic. Fits boosted RF propensity models on real
@@ -123,6 +126,31 @@ designs
   / `.gettestmethod()` factory functions. Each backend returns a train
   function and a predict function. `glmnet2` includes 2-way interactions
   and is binary-only.
+- **Forest backend fast defaults (0.2.1)**: `class.methods = "forest"`
+  defaults to 100 extremely-randomized trees
+  (`splitrule = "extratrees"`, `num.random.splits = 1`), ~5x faster than
+  the old 500-tree gini default at equivalent size/power. Auto-falls
+  back to `splitrule = "gini"` when `Z` contains `NA` (extratrees can’t
+  handle missing) and the user didn’t set a splitrule. Any
+  [`ranger::ranger`](http://imbs-hl.github.io/ranger/reference/ranger.md)
+  arg (`splitrule`, `min.node.size`, `sample.fraction`, …) is forwarded
+  via `fastcpt`’s `classifier.args` (or `balance`’s `fastcpt.args`);
+  `write.forest` is managed automatically.
+- **Metric auto-default (`metric = NULL`)**:
+  [`fastcpt()`](https://cetialphafive.github.io/MLbalance/reference/fastcpt.md)’s
+  `metric` defaults to `NULL` and is resolved in-function — OOB backends
+  (`forest`, `ferns`) at `leaveout = 0` use `"rate"` (OOB classification
+  accuracy); everything else uses `"probability"`. Condition is
+  `(leaveout == 0) && all(class.methods %in% c("forest","ferns"))`, so a
+  mixed `c("ferns","lm")` call stays `"probability"`. An explicit
+  `metric =` always wins.
+  [`balance()`](https://cetialphafive.github.io/MLbalance/reference/balance.md)
+  passes no `metric`/`leaveout`, so `class.method = "forest"`/`"ferns"`
+  → `"rate"`. This is a deliberate deviation from `cpt::cpt()` (whose
+  default is `"probability"`), though consistent with cpt’s OOB-rate
+  Note. At `leaveout = 0` only `forest`/`ferns` produce genuine OOB
+  preds; other backends predict in-sample (`testistrain` path returns
+  training-set predictions).
 - **Multi-arm treatment**: Joint K-class CPT on full data, then pairwise
   binary comparisons vs control for estimation. The `control` argument
   determines the reference level.
@@ -149,9 +177,10 @@ ggdist, ggplot2, patchwork, mirai, glmnet, rpart, MASS, knitr,
 rmarkdown, tibble, withr, testthat
 
 `grf` is the heaviest dependency — boosted regression forests
-(propensity/outcome) and causal forests (ATE). Plotting/distribution
-deps (ggplot2, ggdist, distributional, patchwork) are **Suggests, not
-Imports** — plot/summary code must guard them with
+(propensity/outcome) and causal forests (IPW/outcome-adjusted/AIPW).
+`estimatr` supplies the cluster/block-aware DiM estimator.
+Plotting/distribution deps (ggplot2, ggdist, distributional, patchwork)
+are **Suggests, not Imports** — plot/summary code must guard them with
 [`requireNamespace()`](https://rdrr.io/r/base/ns-load.html). Classifier
 backends (glmnet, rpart, MASS) and the `mirai` parallel backend are
 optional too.
