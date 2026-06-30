@@ -26,7 +26,12 @@ utils::globalVariables(c("pkgs"))
 #' @param T The treatment variable. Is converted to a factor.
 #' @param leaveout The number of observations from each treatment group to include in the test set. If 0, no data is left out and the in-sample test statistic is used. (See note below.) If an integer greater than or equal to 1, the number of observations from each treatment group to leave out. Values between 0 and 1 are converted to \code{ceiling(min(table(T))*leaveout)}.
 #' @param class.methods A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda". Default is "ferns" which is fast and handles interactions well. "rpart", "lda", and "qda" require their respective Suggests packages to be installed.
-#' @param metric Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).
+#' @param metric Which test statistic to use. Can be "rate" (classification
+#'   accuracy), "mse", "logscore", or "probability". If left \code{NULL} (the
+#'   default) the metric is auto-selected: out-of-bag backends ("forest" and
+#'   "ferns") at \code{leaveout = 0} use "rate" (the out-of-bag classification
+#'   accuracy rate), and every other case uses the softer, recommended
+#'   "probability". Pass an explicit value to override.
 #' @param ensemble.metric Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).
 #' @param paired Do a paired permutation test. The data Z must be ordered such that the first observation with T==1 is paired with the first observation with T==2, the second observation with T==1 is paired with the second observation with T==2, etc. This can be accomplished by either letting the first n/2 rows be the treatment observations, and last n/2 rows being the control observations (in the same order), or by using the first two rows for the first pair, the second two rows for the second pair, etc.
 #' @param perm.N The number of permutations.
@@ -90,7 +95,7 @@ utils::globalVariables(c("pkgs"))
 #' @export
 #' @keywords multivariate
 fastcpt <-
-function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
+function (Z, T, leaveout = 0, class.methods = "ferns", metric = NULL,
     ensemble.metric = "mean.prob", paired = FALSE, clusters = NULL, blocks = NULL,
     perm.N = 1000,
     leaveout.N = 100, comb.methods = c(class.methods, "ensemble"),
@@ -164,6 +169,14 @@ function (Z, T, leaveout = 0, class.methods = "ferns", metric = "probability",
     set.seed(R.seed)
     train.methods = .gettrainmethods(class.methods, classifier.args, leaveout)
     test.methods = .gettestmethods(class.methods)
+    # Auto-select the test statistic when the user leaves `metric` unset.
+    # Out-of-bag backends (forest, ferns) at leaveout = 0 use the OOB
+    # classification accuracy "rate" (matching cpt's OOB-rate behaviour);
+    # everything else defaults to the softer, recommended "probability".
+    if (is.null(metric)) {
+        oob.default <- (leaveout == 0) && all(class.methods %in% c("forest", "ferns"))
+        metric <- if (oob.default) "rate" else "probability"
+    }
     metric_name <- if (is.character(metric)) metric else "custom"
     if (is.character(metric))
         metric = .getmetric(metric)

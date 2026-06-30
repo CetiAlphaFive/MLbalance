@@ -12,7 +12,7 @@ fastcpt(
   T,
   leaveout = 0,
   class.methods = "ferns",
-  metric = "probability",
+  metric = NULL,
   ensemble.metric = "mean.prob",
   paired = FALSE,
   clusters = NULL,
@@ -44,7 +44,12 @@ fastcpt(
 
 \item{class.methods}{A character vector of the different classification methods to use. Can be "forest", "ferns", "glmnet2", "lm", "rpart", "lda", or "qda". Default is "ferns" which is fast and handles interactions well. "rpart", "lda", and "qda" require their respective Suggests packages to be installed.}
 
-\item{metric}{Which test statistic to use. Can be "rate", "mse", "logscore", or "probability" (default, recommended).}
+\item{metric}{Which test statistic to use. Can be "rate" (classification
+accuracy), "mse", "logscore", or "probability". If left \code{NULL} (the
+default) the metric is auto-selected: out-of-bag backends ("forest" and
+"ferns") at \code{leaveout = 0} use "rate" (the out-of-bag classification
+accuracy rate), and every other case uses the softer, recommended
+"probability". Pass an explicit value to override.}
 
 \item{ensemble.metric}{Which test statistic to use for an ensemble classifier composed of all of the individual classifiers. Can be "vote", "mean.mse", "mean.log", or "mean.prob" (default, recommended).}
 

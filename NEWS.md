@@ -1,5 +1,13 @@
 # MLbalance 0.2.1
 
+* `fastcpt(metric = ...)` now defaults to `NULL`, which auto-selects the test
+  statistic: out-of-bag backends (`"forest"`, `"ferns"`) at `leaveout = 0` use
+  `"rate"` (the out-of-bag classification accuracy rate); all other cases use
+  `"probability"`. This makes the headline statistic for the default OOB forest
+  and ferns the OOB accuracy rate. An explicit `metric =` is always respected.
+  `balance()` inherits this (e.g. `class.method = "forest"` reports `"rate"`).
+  Note: this deviates from `cpt::cpt()`, whose default is `"probability"`, but
+  matches `cpt`'s documented OOB-rate behaviour when `metric = "rate"`.
 * `fastcpt()` forest backend (`class.methods = "forest"`) now defaults to 100
   extremely-randomized trees (`splitrule = "extratrees"`), ~5x faster than the
   previous 500-tree gini default with equivalent size and power (validated over
